@@ -110,10 +110,10 @@ private fun GaugePanel(state: DashboardState) {
         Text("Just work as usual", fontSize = 22.sp, color = Warm.Muted)
         return
     }
-    EnergyGauge(f.energy, f.level.pretty(), size = 320.dp)
+    EnergyGauge(f.energy, f.level.pretty(), size = 320.dp, tint = stateColor(f))
     Text("over the ${windowLabel(state.windowMs)}", fontSize = 16.sp, color = Warm.Faint)
     Spacer(Modifier.height(8.dp))
-    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = energyColor(f.energy), textAlign = TextAlign.Center)
+    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = stateColor(f), textAlign = TextAlign.Center)
     // Top 3 reasons, so the jury sees WHY the gauge moved.
     f.reasons.take(3).forEach { Text(readableReason(it), fontSize = 21.sp, color = Warm.Muted) }
     Spacer(Modifier.height(16.dp))
@@ -168,7 +168,7 @@ private fun rememberEnergyHistory(f: FatigueState): List<Int> {
  */
 @Composable
 private fun moodBackground(f: FatigueState): Brush {
-    val target = if (f.calibrated) energyColor(f.energy) else Warm.Calm
+    val target = if (f.calibrated) stateColor(f) else Warm.Calm
     val tint by animateColorAsState(target, tween(2000), label = "mood")
     return Brush.horizontalGradient(listOf(lerp(Warm.Mauve, tint, 0.14f), Warm.Deep))
 }
