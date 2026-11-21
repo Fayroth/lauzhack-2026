@@ -1,12 +1,22 @@
 package ch.lauzhack.energyguard.companion
 
+import ch.lauzhack.energyguard.app.AppState
+import ch.lauzhack.energyguard.app.BreakSource
+import ch.lauzhack.energyguard.app.CoachNote
+import ch.lauzhack.energyguard.app.Concentration
+import ch.lauzhack.energyguard.app.DayStats
+import ch.lauzhack.energyguard.app.EnergyState
+import ch.lauzhack.energyguard.app.Settings
 import ch.lauzhack.energyguard.coach.CoachMessage
 import ch.lauzhack.energyguard.coach.Intervention
+import ch.lauzhack.energyguard.engine.BaselineSummary
 import ch.lauzhack.energyguard.model.FatigueState
 import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.Level
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.DashboardState
+import ch.lauzhack.energyguard.ui.today.SignalsSnapshot
+import ch.lauzhack.energyguard.ui.today.liveSignals
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngineFactory
 import io.ktor.client.plugins.HttpTimeout
@@ -39,10 +49,109 @@ data class CompanionState(
     val runId: Int = 0,
     val vision: VisionFrame? = null,
     val input: InputStats? = null,
+    // --- Optional, app model (M1): absent from older PCs, ignored by older phones (ignoreUnknownKeys) ---
+    val energy: CompanionEnergy? = null,
+    val recovery: Int? = null,
+    val stats: CompanionStats? = null,
+    // --- Optional, M3: the Live signals card as numbers (the phone has no personal baseline to compute "× usual") ---
+    val signals: SignalsSnapshot? = null,
 )
 
 @Serializable
 data class CompanionCoach(val text: String, val kind: Intervention, val fromLlm: Boolean)
+
+/**
+ * EnergyBattery for the phone. [breakSource] = "USER" | "AUTO" | null.
+ * M3 (optional, null from older PCs): [startFromSleep] = battery start this morning, [sleepHours] = the PC's slider.
+ */
+@Serializable
+data class CompanionEnergy(
+    val battery: Int,
+    val onBreak: Boolean = false,
+    val breakSource: BreakSource? = null,
+    val startFromSleep: Int? = null,
+    val sleepHours: Double? = null,
+)
+
+/** Today's DayStats, numbers only. Never journal entries or notes. */
+@Serializable
+data class CompanionStats(
+    val focusedMs: Long = 0,
+    val breaksTaken: Int = 0,
+    val breaksNeeded: Int = 0,
+    val longestFocusMs: Long = 0,
+    val phishingBlocked: Int = 0,
+    val llmCalls: Int = 0,
+    val framesProcessed: Long = 0,
+    val imagesSent: Int = 0,
+    val audioSent: Int = 0,
+    val keysSent: Int = 0,
+)
+
+/** PC side: the app-model fields (battery, recovery, today's stats) on top of the dashboard snapshot. */
+fun CompanionState.withApp(app: AppState) = copy(
+    energy = CompanionEnergy(
+        app.energy.battery, app.energy.onBreak, app.energy.breakSource, app.energy.startFromSleep, app.settings.sleepHours,
+    ),
+    signals = app.liveSignals(),
+    recovery = app.recovery,
+    stats = with(app.stats) {
+        CompanionStats(focusedMs, breaksTaken, breaksNeeded, longestFocusMs, phishingBlocked, llmCalls, framesProcessed,
+            imagesSent, audioSent, keysSent)
+    },
+)
+
+/** PC side: full snapshot from the app store. */
+fun AppState.toCompanionState(ts: Long) = dashboard.toCompanionState(ts).withApp(this)
+
+/** Phone side: clamp the optional app-model fields (untrusted network), keep them null when the PC is older. */
+fun CompanionState.clampAppFields() = copy(
+    energy = energy?.let {
+        it.copy(
+            battery = it.battery.coerceIn(0, 100),
+            startFromSleep = it.startFromSleep?.coerceIn(0, 100),
+            sleepHours = it.sleepHours?.takeIf { h -> h.isFinite() }?.coerceIn(Settings.MIN_SLEEP_HOURS, Settings.MAX_SLEEP_HOURS),
+        )
+    },
+    signals = signals?.clamped(),
+    recovery = recovery?.coerceIn(0, 100),
+    stats = stats?.let {
+        it.copy(
+            focusedMs = it.focusedMs.coerceAtLeast(0), breaksTaken = it.breaksTaken.coerceAtLeast(0),
+            breaksNeeded = it.breaksNeeded.coerceAtLeast(0), longestFocusMs = it.longestFocusMs.coerceAtLeast(0),
+            phishingBlocked = it.phishingBlocked.coerceAtLeast(0), llmCalls = it.llmCalls.coerceAtLeast(0),
+            framesProcessed = it.framesProcessed.coerceAtLeast(0), imagesSent = it.imagesSent.coerceAtLeast(0),
+            audioSent = it.audioSent.coerceAtLeast(0), keysSent = it.keysSent.coerceAtLeast(0),
+        )
+    },
+)
+
+/**
+ * Phone side (M3): the PC's state as an [AppState] for the shared Today screen. Call on a [clampAppFields] result.
+ * [local] gives what never comes from the PC (theme, haptics switch, the phone's own journal). Fields an older PC
+ * doesn't send keep neutral defaults; the battery then mirrors the concentration's scale, not a made-up number.
+ */
+fun CompanionState.toAppState(local: AppState, day: String): AppState {
+    val dashboard = toDashboardState()
+    val e = energy
+    return local.copy(
+        dashboard = dashboard,
+        concentration = Concentration.from(dashboard.fatigue),
+        energy = if (e == null) EnergyState() else EnergyState(e.battery, e.onBreak, e.breakSource, e.startFromSleep ?: e.battery),
+        recovery = recovery ?: 0,
+        coach = dashboard.coach?.let { CoachNote(it.text, it.kind, it.fromLlm) },
+        stats = stats?.let {
+            DayStats(day, it.focusedMs, it.breaksTaken, it.breaksNeeded, it.longestFocusMs, 0, it.phishingBlocked, it.llmCalls,
+                it.framesProcessed, it.imagesSent, it.audioSent, it.keysSent)
+        } ?: DayStats(day, llmCalls = dashboard.llmCallCount),
+        settings = e?.sleepHours?.let { local.settings.copy(sleepHours = it) } ?: local.settings,
+        demo = false,
+    )
+}
+
+/** Phone side: the PC's Live signals rows; an older PC without `signals` -> computed from raw vision/input (no baseline). */
+fun CompanionState.phoneSignals(): SignalsSnapshot =
+    signals ?: SignalsSnapshot.of(vision, input, BaselineSummary.Empty, demo = false)
 
 /** PC side: snapshot of what the dashboard shows right now. */
 fun DashboardState.toCompanionState(ts: Long) = CompanionState(
@@ -132,7 +241,7 @@ class CompanionClient(engine: HttpClientEngineFactory<*>, private val timeoutMs:
             200 -> {
                 val text = resp.bodyAsText()
                 if (text.length > MAX_BODY_CHARS) CompanionResult.Unreachable("response too large")
-                else CompanionResult.Ok(CompanionJson.decodeFromString(CompanionState.serializer(), text))
+                else CompanionResult.Ok(CompanionJson.decodeFromString(CompanionState.serializer(), text).clampAppFields())
             }
             401 -> CompanionResult.WrongCode
             429 -> CompanionResult.TooManyTries

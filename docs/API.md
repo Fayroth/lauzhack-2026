@@ -97,6 +97,19 @@ class FatigueEngine {
 - Signals missing (no face, no typing, no gaze/hands tracker) are dropped and weights renormalized.
 - Eyes closed > 1 s → instant `TIRED` (reason `"eyes closed 1.2 s"`).
 - Levels use hysteresis: up at 30/55/80, down below 20/45/70.
+- Read-only `fun baselineSummary(): BaselineSummary` (for the Profile tab, no behaviour change):
+  ```kotlin
+  data class BaselineSummary(
+      val calibrated: Boolean,
+      val blinkRatePerMin: Double?,  // baseline mean of blinkCount (blinks / 60 s)
+      val blinkMs: Double?,          // baseline mean blink duration
+      val perclos: Double?,          // baseline PERCLOS (0..1)
+      val mouseJitter: Double?,      // baseline jitter (reversals / s)
+      val interKeyMs: Double?,       // baseline typing rhythm (mean gap between keys)
+      val backspaceRatio: Double?,   // baseline typo rate
+  )
+  ```
+  A value is `null` until that signal has a frozen (calibrated) baseline.
 
 ### Engine timing for the UI (`DashboardState`)
 `main.kt` tells the dashboard how the current engine is configured, so the UI never hardcodes it:
@@ -110,6 +123,12 @@ How the UI should use them (owner: Mehdi):
 - Window label: build "over the last ..." from `windowMs` (60 000 → "last minute", 10 000 → "last 10 s").
 - Per-run state: key it on the run, e.g. `remember(state.runId) { ... }` for the 5-min trend history
   (and the countdown start mark), so F5 clears the old curve instead of drawing a jump to 100%.
+
+### Sleep prior (#15, `model/SleepPrior.kt`)
+`SleepPrior.hours` (default 7.0, set by the "Slept" slider in the dashboard header, range 3–9 h) shifts the
+fatigue score **after** EMA smoothing and **before** the levels: `SleepPrior.penalty()` = `round((7 - hours) * 5)`
+clamped to **-5..+20** points (5 h → +10, 3 h → +20, 8 h → -5). When the penalty is ≥ 5, the engine adds the
+reason `short night (N h)`. Shared object, no new parameter: the UI writes it, the engine reads it on every frame.
 
 ## EnergyCoach (commonMain)
 Frugal generative layer: turns the fusion result into one short, personalized intervention.
@@ -251,6 +270,35 @@ guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `deskt
              "keyCount": 80, "backspaceRatio": 0.12, "meanInterKeyMs": 240.0 }
 }
 ```
+**Optional, added with the app model (M1), absent from older PCs; old phones ignore them (`ignoreUnknownKeys`):**
+```json
+{
+  "energy": { "battery": 74, "onBreak": false, "breakSource": null },
+  "recovery": 68,
+  "stats": { "focusedMs": 5400000, "breaksTaken": 2, "breaksNeeded": 1, "longestFocusMs": 3000000,
+             "phishingBlocked": 1, "llmCalls": 1, "framesProcessed": 36000, "imagesSent": 0, "audioSent": 0, "keysSent": 0 }
+}
+```
+**Optional, added with the Android shell (M3), absent from older PCs; old phones ignore them:**
+```json
+{
+  "energy": { "battery": 74, "onBreak": false, "breakSource": null, "startFromSleep": 90, "sleepHours": 6.0 },
+  "signals": { "source": "Logitech webcam · IR", "face": true, "blinksPerMin": 22, "perclosPct": 18, "eyesClosed": false,
+               "jitterX": 1.7, "jitterPerS": 2.0, "precisionPct": 70, "typing": true, "msPerKey": 268, "backspacePct": 12 }
+}
+```
+- `signals` = the PC's Live signals card as numbers (`SignalsSnapshot` in `commonMain/.../ui/today/LiveSignals.kt`, built by
+  `SignalsSnapshot.of(vision, input, profile.baseline, demo)`), so the phone shows exactly the PC's rows, incl. "× usual"
+  (the phone has no baseline). Every field may be `null` = no data: `face` null = no vision frame, `false` = no face;
+  `typing` null = no input stats, `false` = not typing; `jitterX` = jitter / personal baseline (null while calibrating),
+  `jitterPerS` raw; `precisionPct` = 100 / overshoot. `source` = display label (`sensingSource`), ≤ 40 chars.
+  Phone drops out-of-range values (`SignalsSnapshot.clamped()`). No `signals` (older PC) → phone formats raw `vision` / `input`.
+- `energy.startFromSleep` (0..100) and `energy.sleepHours` (3..9, clamped) let the phone draw the Energy / Recovery cards
+  read-only ("Change on your PC"). Still **no new endpoint**: the companion stays one read-only `GET /state`.
+
+- `energy.battery` = `EnergyBattery` 0..100, `breakSource` = `"USER" | "AUTO" | null`; `recovery` = `RecoveryScore` 0..100;
+  `stats` = `DayStats` (see "App model"). Phone clamps them (0..100, counters ≥ 0). **Never** journal entries or notes.
+
 - `score`, `level` (`FRESH|OK|TIRED|EXHAUSTED`), `reasons`, `calibrated`: the PC's `FatigueState`. `coach`: last `CoachMessage`
   or `null` (`kind` = `BREAK|STAND_UP|RECOVERED`). `ts`: PC time of the dashboard snapshot (epoch ms).
 - `llmCalls`, `calibrationMs`, `windowMs`, `runId`: same meaning as in `DashboardState`, so the phone draws exactly the PC dashboard.
@@ -259,8 +307,9 @@ guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `deskt
   `CompanionState.toDashboardState()`), client `CompanionClient.fetch(PairingTarget)` → `Ok | WrongCode | TooManyTries | Unreachable`.
 - Errors: missing/wrong code → `401`; 5 wrong codes from one IP within 60 s → `429` for 60 s (even with the right code);
   other path → `404`; any method but `GET` (incl. `OPTIONS`) → `405`; app not ready yet → `503`. Error body `{"error":"..."}`.
-- Phone: polls every ~1 s (timeout 1.5 s). 3 failures in a row → "Not connected to your PC" + local demo replay, keeps retrying.
-  `401` → pairing screen "Wrong code" (stops polling). `429` → "Too many wrong codes".
+- Phone: polls every ~1 s (timeout 1.5 s). 3 failures in a row → "Can't reach your PC" card + local demo replay, keeps retrying.
+  `401` → Profile tab "Wrong code" (stops polling, forgets the code). `429` → "Too many wrong codes".
+  Phone side: `CompanionState.toAppState(local, day)` + `phoneSignals()` feed the shared phone Today (`ui/phone/`).
 
 Security (mandatory):
 - **Read-only:** one `GET`, no endpoint changes anything on the PC. Only numbers and the engine's short reason / coach strings:
@@ -272,6 +321,117 @@ Security (mandatory):
 - No CORS headers at all (a web page can't send the `Authorization` header cross-origin without a preflight, which gets `405`).
 - Logs nothing but a request counter (no IPs, no codes). Plain HTTP on the LAN: use the phone's hotspot (WPA2), allow the
   Windows Firewall prompt on **Private** networks only.
+
+## App model (3-tab app: Today / Journal / Profile, `commonMain/.../app/`, M1)
+Pure Kotlin, no Compose. One state holder for both shells (desktop M2, Android M3). The current dashboard keeps rendering
+`DashboardState` exactly as before; `AppState` is a superset of it.
+
+```kotlin
+data class AppState(
+    val dashboard: DashboardState,     // what the current dashboard renders (mirror, set by the shell)
+    val concentration: Concentration,  // live
+    val energy: EnergyState,           // battery, slow over the day
+    val recovery: Int,                 // RecoveryScore 0..100
+    val coach: CoachNote?,             // EnergyCoach.lastMessage + "AI" / "offline" tag
+    val stats: DayStats,               // today
+    val journal: List<JournalEntry>,   // newest first, max 500
+    val profile: Profile,              // personal baseline
+    val settings: Settings,
+    val history: List<DaySummary>,     // past days, newest first, max 7 (today = stats)
+    val demo: Boolean,
+)
+class AppStore(clock: () -> Long, dayKey: (Long) -> String, persistence: AppPersistence, demo: Boolean = false, ...) {
+    val state: StateFlow<AppState>
+    // feeds (shell → store)
+    fun onVision(frame: VisionFrame); fun onInput(stats: InputStats, ts: Long)
+    fun onFatigue(state: FatigueState, ts: Long, baseline: BaselineSummary? = null)
+    fun onCoach(message: CoachMessage?, llmCallCount: Int); fun onGuardBlock(); fun setDashboard(d: DashboardState)
+    fun tick(now: Long = clock())      // every ~1 s: battery, focus time, auto-break, day rollover, autosave
+    // user actions
+    fun startBreak(); fun endBreak()
+    fun addJournalEntry(kss: Int?, stress: Int?, caffeine: Int?, note: String?): JournalEntry?
+    fun deleteJournalEntry(id: Long)
+    fun updateSettings(transform: (Settings) -> Settings); fun setSleepHours(hours: Double)
+    fun resetRun()                     // demo F5: battery + today's counters from zero (LLM count stays real)
+    fun flush()                        // save now (app exit)
+}
+```
+**Threading:** like `FatigueEngine`, call it from one thread (the Compose main thread). The guard server's Ktor threads
+must post `onGuardBlock()` to the main thread.
+
+### Concentration (live, 0–100)
+`value = 100 - FatigueState.score`, plus `level`, `calibrated` and the top-3 `reasons` of the engine.
+
+### EnergyBattery (0–100, slow over the day, `app/EnergyBattery.kt`)
+- **Start** from last night's sleep `h` (`Settings.sleepHours`): `100 - 10 * (7 - clamp(h, 3, 7))` → ≥ 7 h = 100, 5 h = 80, ≤ 3 h = 60.
+  Changing the sleep hours later in the day shifts the battery by the difference of the two starts.
+- **Drain** while awake and not on a break: `5 %/h` at FRESH/OK, `×2` (10 %/h) at TIRED, `×3` (15 %/h) at EXHAUSTED.
+- **Refill** during a break: `+30 %/h` (5-min break ≈ +2.5, 20 min = +10). Always clamped to 0..100.
+- One integration step = time since the last `tick`, capped at **60 s** (a frozen/suspended app never jumps).
+- **Break** = user action `startBreak()` (until `endBreak()`), **or** auto: no face frame **and** no active input
+  (`clickCount > 0 || keyCount > 0 || mouseDistancePx >= 50`) for **≥ 2 min** (real time); an auto break ends on the next face
+  frame or active input. A break is counted in `breaksTaken` when it starts.
+- **Demo mode** (`EG_DEMO=1`, Android demo): same model, battery time ×**120** (1 real s = 2 min), so the 2-min demo drains ≈ 30 %.
+  Break detection and `DayStats` stay in real time.
+
+### RecoveryScore (0–100, `app/Recovery.kt`)
+Weighted mean of the components present, weights renormalized over them:
+- **Sleep 50 %:** `clamp((h - 4) / 4, 0, 1) * 100` (4 h = 0, 6 h = 50, ≥ 8 h = 100).
+- **Breaks 30 %:** `needed = floor(focusedMs / 60 min)`; `needed == 0` → 100, else `min(1, taken / needed) * 100`.
+- **Journal check-in 20 % (optional):** latest entry of today with a KSS or a stress value: mean of
+  `(9 - kss) / 8 * 100` and `(5 - stress) / 4 * 100` (those present). No such entry → weights become 62.5 % / 37.5 %.
+
+### DayStats (today, reset at the local day change or demo F5)
+```kotlin
+data class DayStats(
+    val day: String,               // "YYYY-MM-DD", local
+    val focusedMs: Long,           // present (not idle >= 2 min) and not on a break, real time
+    val breaksTaken: Int, val breaksNeeded: Int,
+    val longestFocusMs: Long,      // longest focus streak (a break ends a streak; short pauses < 2 min don't)
+    val currentFocusMs: Long,
+    val phishingBlocked: Int,      // guard Block verdicts today (inbox + Chrome extension)
+    val llmCalls: Int,             // real LLM calls today
+    val framesProcessed: Long,     // vision frames processed on this device
+    val imagesSent: Int = 0, val audioSent: Int = 0, val keysSent: Int = 0, // always 0, by design
+)
+```
+
+### Journal, settings, history, profile
+```kotlin
+data class JournalEntry(
+    val id: Long, val ts: Long,    // id = ts (unique, +1 on collision)
+    val kss: Int? = null,          // Karolinska sleepiness 1..9 (1 = very alert)
+    val stress: Int? = null,       // 1..5
+    val caffeine: Int? = null,     // cups today, 0..20
+    val note: String? = null,      // PRIVATE: max 1000 chars, never leaves the device (no LLM, no companion)
+    val concentration: Int,        // our Concentration.value at that moment
+)
+data class Settings(val sleepHours: Double = 7.0, val sleepDay: String? = null, val theme: ThemeMode = DARK,
+                    val hapticsOn: Boolean = true, val coachOnline: Boolean = true)
+data class DaySummary(val day: String, val focusedMs: Long, val breaksTaken: Int, val longestFocusMs: Long,
+                      val phishingBlocked: Int, val llmCalls: Int, val framesProcessed: Long, val battery: Int,
+                      val minBattery: Int, val recovery: Int, val sleepHours: Double, val avgConcentration: Int?, val checkIns: Int)
+data class Profile(val baseline: BaselineSummary)
+data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Boolean) { val tag: String /* "AI" | "offline" */ }
+```
+- Invalid journal values (KSS outside 1..9, stress outside 1..5, caffeine outside 0..20) are dropped (`null`); an entry
+  with nothing in it is rejected (`addJournalEntry` returns `null`).
+- `sleepHours` (3..9) is synced with `SleepPrior.hours` (the header slider) on every `tick`; at start it is restored only
+  if `sleepDay` is today (yesterday's night is not tonight's).
+- `theme`, `hapticsOn`, `coachOnline` are stored for M2; `hapticsOn = false` already mutes haptics on desktop.
+
+### Persistence (`app/Persistence.kt`, expect/actual)
+Tiny JSON files (kotlinx.serialization), `{"version":1, ...}`: `settings.json`, `journal.json`, `history.json`.
+Desktop `~/.energyguard/`, Android `filesDir`. Missing or corrupt file → defaults, never a crash (a corrupt file is copied
+to `<name>.bad` first). Atomic write (temp file + rename). Nothing is sent anywhere.
+- Settings / journal: saved on every change. History: today's summary saved every 60 s, on day change and on `flush()`;
+  same-day restart resumes today's battery and counters.
+- Desktop demo mode uses an in-memory store (nothing written). Android (demo engine) keeps journal + settings, no history.
+
+## Desktop shortcuts vs text fields (M2b)
+Window shortcuts (`1` / `2` / `3` tabs, `F2` inbox, `F5` demo replay; `desktopMain/ui/Shortcuts.kt`) are ignored while a
+text field has focus. **Every text field must use `Modifier.tracksTextFocus()`** (`commonMain/ui/components/TextFieldFocus.kt`),
+otherwise typing "1" in it switches tabs.
 
 ## Sources (desktop)
 ```kotlin
