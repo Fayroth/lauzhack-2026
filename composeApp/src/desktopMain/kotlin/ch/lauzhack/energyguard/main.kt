@@ -1,5 +1,6 @@
 package ch.lauzhack.energyguard
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -11,6 +12,10 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.energyguard.engine.FatigueEngine
+import ch.lauzhack.energyguard.guardrail.GuardedAction
+import ch.lauzhack.energyguard.guardrail.Guardrail
+import ch.lauzhack.energyguard.guardrail.LocalGuard
+import ch.lauzhack.energyguard.guardrail.Verdict
 import ch.lauzhack.energyguard.haptics.HapticPattern
 import ch.lauzhack.energyguard.haptics.MockHapticOutput
 import ch.lauzhack.energyguard.haptics.MxMaster4HapticOutput
@@ -49,6 +54,13 @@ fun main() = application {
         if (System.getenv("EG_HAPTICS") == "mx") MxMaster4HapticOutput().also { it.pulse(HapticPattern.GENTLE) } // startup pulse = "mouse connected"
         else MockHapticOutput()
     }
+    val guardrail = remember { Guardrail() }
+    // UI calls LocalGuard.current(action): checked against the latest fatigue, mouse vibrates on every Block.
+    val guard: (GuardedAction) -> Verdict = remember {
+        { action ->
+            guardrail.check(action, engine.state.value).also { if (it is Verdict.Block) haptics.pulse(HapticPattern.WARNING) }
+        }
+    }
 
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
@@ -79,6 +91,8 @@ fun main() = application {
         title = "EnergyGuard",
         state = rememberWindowState(width = 1280.dp, height = 800.dp),
     ) {
-        App(DashboardState(fatigue, lastVision, lastInput))
+        CompositionLocalProvider(LocalGuard provides guard) {
+            App(DashboardState(fatigue, lastVision, lastInput))
+        }
     }
 }

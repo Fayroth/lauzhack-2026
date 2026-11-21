@@ -127,6 +127,52 @@ interface HapticOutput { fun pulse(pattern: HapticPattern) }
 When (`HapticTrigger`, desktopMain): GENTLE on entering TIRED, WARNING on entering EXHAUSTED, only on the way up,
 at most once per 2 min (except an escalation GENTLE → WARNING, never swallowed).
 Real implementation (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): sends HID report `0x11` + `[0x02, 0x0B, 0x4E, effectId, 0…]` (19 bytes) to the vendor HID collection of the MX Master 4 (046D:B042 / B048), bytes from the WebHID library. `GENTLE` / `WARNING` effect numbers can be overridden with `EG_HAPTIC_GENTLE` / `EG_HAPTIC_WARNING` (0–14). If the mouse is absent: console line + system beep. One gentle pulse at startup confirms the mouse is connected.
+Also: one WARNING every time the Guardrail returns `Block` (see below).
+
+## Guardrail (commonMain, `guardrail/Guardrail.kt`)
+"Double vigilance": a risky action is checked harder when energy is low. Pure and deterministic: no ML, no network, no clock.
+```kotlin
+sealed interface GuardedAction {
+    /** A link click. displayText = what the user sees, href = where it really goes, context = email subject + body (optional). */
+    data class OpenLink(val displayText: String, val href: String, val context: String = "") : GuardedAction
+    data class Payment(val iban: String, val amountChf: Double) : GuardedAction
+}
+sealed interface Verdict {
+    data object Allow : Verdict
+    data class Warn(val reason: String, val signals: List<String> = emptyList()) : Verdict   // ask "Open anyway?"
+    data class Block(val reason: String, val signals: List<String> = emptyList()) : Verdict  // no way through
+}
+class Guardrail(trustedDomains: Set<String> = …) {
+    fun check(action: GuardedAction, fatigue: FatigueState): Verdict
+}
+```
+- `reason`: one plain-words headline for the big warning screen. `signals`: one short line per red flag (bullets).
+- Link signals. **Strong:** link text shows a different domain than the real one · lookalike of a known brand
+  (`paypa1`, `rn`→`m`, `0`→`o`, brand in a subdomain like `paypal.com.secure-login.xyz`) · punycode / non-ASCII host ·
+  raw IP host · `user@host` trick. **Weak:** unknown (not trusted) domain · urgency words in text/context · plain `http` ·
+  URL shortener · cheap TLD (`.xyz`, `.top`, ...).
+- Decision: | | strong signal | only weak | none |
+  |---|---|---|---|
+  | FRESH / OK | Warn | Allow | Allow |
+  | TIRED / EXHAUSTED | **Block** | Warn | Allow |
+- Payment: TIRED/EXHAUSTED → Warn ("double-check IBAN and amount"), otherwise Allow.
+
+**How the UI calls it (inbox, #13):** no need to hold the engine or the haptics. Inside any composable:
+```kotlin
+val guard = LocalGuard.current                       // (GuardedAction) -> Verdict, provided by main.kt
+when (val v = guard(GuardedAction.OpenLink(displayText, href, context = subject + "\n" + body))) {
+    Verdict.Allow    -> /* normal flow: show the "page opened" screen */
+    is Verdict.Warn  -> /* confirm dialog: v.reason + v.signals, buttons "Go back" / "Open anyway" */
+    is Verdict.Block -> /* red block screen: v.reason + v.signals, only "Go back" (the mouse already vibrated) */
+}
+```
+`main.kt` provides `LocalGuard` = `Guardrail.check(action, latest FatigueState)` + haptic WARNING on `Block`.
+Default when not provided (Android, previews): same check with `FatigueState.Initial`, no haptics.
+
+Demo phishing email (the one the tests use, copy it into the inbox):
+- From `PayPal Security <service@paypa1-secure.com>`, subject `URGENT: your account will be suspended in 24 hours`
+- Link text `https://www.paypal.com/signin`, href `https://paypa1-secure.com/signin`
+- → TIRED: **Block** · FRESH: Warn. A legit link (`https://actu.epfl.ch/news/`, text "EPFL news") → Allow at every level.
 
 ## Sources (desktop)
 ```kotlin
