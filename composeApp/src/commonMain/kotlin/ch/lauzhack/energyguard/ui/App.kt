@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -38,8 +40,6 @@ import ch.lauzhack.energyguard.model.Level
 import kotlinx.coroutines.delay
 import kotlin.time.TimeSource
 
-/** Must match FatigueEngine's default calibrationMs. Only used for the countdown text. */
-private const val CALIBRATION_SECONDS = 60
 
 /** 5 minutes of history at one sample per second. */
 private const val EnergyHistorySize = 300
@@ -47,8 +47,13 @@ private const val EnergyHistorySize = 300
 /** Root composable shared by Desktop and Android (owner: Mehdi). */
 @Composable
 fun App(state: DashboardState) {
+    // Demo mode calibrates in 15 s instead of 60 s: use that to shorten the alert escalation too.
+    val demo = state.calibrationMs < 60_000
     MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
-        DashboardScreen(state)
+        Box(Modifier.fillMaxSize()) {
+            DashboardScreen(state)
+            key(state.runId) { BreakAlertOverlay(state.fatigue, state.coach, demo) } // F5 replay: fresh alert state
+        }
     }
 }
 
@@ -74,7 +79,7 @@ fun DashboardScreen(state: DashboardState) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                GaugePanel(state.fatigue)
+                GaugePanel(state)
             }
             // Right: one tile per signal source.
             Column(
@@ -90,11 +95,13 @@ fun DashboardScreen(state: DashboardState) {
 }
 
 @Composable
-private fun GaugePanel(f: FatigueState) {
-    val history = rememberEnergyHistory(f)
+private fun GaugePanel(state: DashboardState) {
+    val f = state.fatigue
+    // Keyed on runId: an F5 demo replay starts with an empty trend and a fresh countdown.
+    val history = key(state.runId) { rememberEnergyHistory(f) }
     if (!f.calibrated) {
-        val secondsLeft = calibrationCountdown()
-        EnergyGauge(energy = 100, label = "Calibrating", size = 360.dp, calibrating = true)
+        val secondsLeft = key(state.runId) { calibrationCountdown(state.calibrationMs) }
+        EnergyGauge(energy = 100, label = "Calibrating", size = 320.dp, calibrating = true)
         Spacer(Modifier.height(24.dp))
         Text(
             "Getting to know you... ${secondsLeft} s",
@@ -103,15 +110,29 @@ private fun GaugePanel(f: FatigueState) {
         Text("Just work as usual", fontSize = 22.sp, color = Warm.Muted)
         return
     }
-    EnergyGauge(f.energy, f.level.pretty(), size = 360.dp)
-    Text("over the last minute", fontSize = 16.sp, color = Warm.Faint)
+    EnergyGauge(f.energy, f.level.pretty(), size = 320.dp, tint = stateColor(f))
+    Text("over the ${windowLabel(state.windowMs)}", fontSize = 16.sp, color = Warm.Faint)
     Spacer(Modifier.height(8.dp))
-    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = energyColor(f.energy), textAlign = TextAlign.Center)
+    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = stateColor(f), textAlign = TextAlign.Center)
     // Top 3 reasons, so the jury sees WHY the gauge moved.
     f.reasons.take(3).forEach { Text(readableReason(it), fontSize = 21.sp, color = Warm.Muted) }
     Spacer(Modifier.height(16.dp))
-    EnergyTrend(history, Modifier.width(420.dp).height(90.dp))
-    Text("your energy, last 5 minutes", fontSize = 16.sp, color = Warm.Faint)
+    // Legend beside the chart, not under it, so nothing is cut off at 1280x800 with 3 reasons.
+    Row(verticalAlignment = Alignment.Bottom) {
+        EnergyTrend(history, Modifier.width(380.dp).height(80.dp))
+        Spacer(Modifier.width(16.dp))
+        Text("energy\nlast 5 min", fontSize = 16.sp, color = Warm.Faint)
+    }
+}
+
+/** "last minute" (real engine, 60 s window) or "last 10 s" (demo mode). */
+internal fun windowLabel(windowMs: Long): String {
+    val s = windowMs / 1000
+    return when {
+        s == 60L -> "last minute"
+        s % 60 == 0L -> "last ${s / 60} min"
+        else -> "last $s s"
+    }
 }
 
 /**
@@ -119,6 +140,14 @@ private fun GaugePanel(f: FatigueState) {
  * Display only, the engine's strings are unchanged. Reasons without a signed percentage pass through.
  */
 private val signedPercent = Regex(""" ([+-]\d+)%$""")
+
+/** Same idea inside free text (the coach's message): every "+347%" becomes "×4.5 vs usual". */
+private val signedPercentAnywhere = Regex("""([+-])(\d+)\s?%""")
+
+internal fun factorize(text: String): String = signedPercentAnywhere.replace(text) { m ->
+    val pct = m.groupValues[2].toInt() * (if (m.groupValues[1] == "-") -1 else 1)
+    "×${(1 + pct / 100.0).coerceAtLeast(0.0).fmt(1)} vs usual"
+}
 
 internal fun readableReason(reason: String): String {
     val match = signedPercent.find(reason) ?: return reason
@@ -147,19 +176,20 @@ private fun rememberEnergyHistory(f: FatigueState): List<Int> {
  */
 @Composable
 private fun moodBackground(f: FatigueState): Brush {
-    val target = if (f.calibrated) energyColor(f.energy) else Warm.Calm
+    val target = if (f.calibrated) stateColor(f) else Warm.Calm
     val tint by animateColorAsState(target, tween(2000), label = "mood")
     return Brush.horizontalGradient(listOf(lerp(Warm.Mauve, tint, 0.14f), Warm.Deep))
 }
 
-/** Seconds left in calibration, counted from the first time the dashboard is shown uncalibrated. */
+/** Seconds left in calibration ([calibrationMs] from the engine), counted from when the countdown is first shown. */
 @Composable
-private fun calibrationCountdown(): Int {
+private fun calibrationCountdown(calibrationMs: Long): Int {
+    val total = (calibrationMs / 1000).toInt()
     val start = remember { TimeSource.Monotonic.markNow() }
-    var left by remember { mutableStateOf(CALIBRATION_SECONDS) }
+    var left by remember { mutableStateOf(total) }
     LaunchedEffect(start) {
         while (true) {
-            left = (CALIBRATION_SECONDS - start.elapsedNow().inWholeSeconds.toInt()).coerceAtLeast(0)
+            left = (total - start.elapsedNow().inWholeSeconds.toInt()).coerceAtLeast(0)
             delay(250)
         }
     }

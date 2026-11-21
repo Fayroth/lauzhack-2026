@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.unit.dp
 import ch.lauzhack.energyguard.model.FatigueState
 import ch.lauzhack.energyguard.ui.Warm
-import ch.lauzhack.energyguard.ui.energyColor
+import ch.lauzhack.energyguard.ui.stateColor
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -84,7 +84,7 @@ private fun surfacePath(level: Float, t: Float, closeToBottom: Boolean): Path = 
 /** Animated logo for the app header, tinted by the current energy level. */
 @Composable
 fun EnergyGuardLogo(fatigue: FatigueState, modifier: Modifier = Modifier) {
-    val target = if (fatigue.calibrated) energyColor(fatigue.energy) else Warm.Calm
+    val target = if (fatigue.calibrated) stateColor(fatigue) else Warm.Calm
     val color by animateColorAsState(target, tween(1200), label = "logoColor")
     val t by rememberInfiniteTransition(label = "liquid").animateFloat(
         initialValue = 0f,

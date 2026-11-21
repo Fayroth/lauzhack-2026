@@ -20,7 +20,7 @@ object Warm {
     val Honey = Color(0xFFF7C35F)      // 75-100 % energy
     val Apricot = Color(0xFFF29E5C)    // 50-75 %
     val Coral = Color(0xFFEE6F5E)      // 25-50 %
-    val Rose = Color(0xFFE04E78)       // 0-25 %
+    val Rose = Color(0xFFE5484D)       // 0-25 % and EXHAUSTED: a clear red (was a pinkish rose)
     val Sage = Color(0xFF93CFA0)       // a signal that looks normal
     val Calm = Color(0xFFA8B8F0)       // calibration / informational
 

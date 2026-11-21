@@ -23,12 +23,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.lauzhack.energyguard.model.FatigueState
+import ch.lauzhack.energyguard.model.Level
 
 /** Energy gauge: 270 degree arc, honey to rose, with a soft glow. [energy] in 0..100. Calm blue while [calibrating]. */
 @Composable
-fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp, calibrating: Boolean = false) {
+fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp, calibrating: Boolean = false, tint: Color = energyColor(energy)) {
     val animated by animateFloatAsState(if (calibrating) 1f else energy / 100f, tween(800), label = "energy")
-    val color = if (calibrating) Warm.Calm.copy(alpha = 0.35f) else energyColor(energy)
+    val color = if (calibrating) Warm.Calm.copy(alpha = 0.35f) else tint
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size).padding(24.dp)) {
             val stroke = Stroke(width = 30.dp.toPx(), cap = StrokeCap.Round)
@@ -44,10 +46,13 @@ fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp, calibrating: Bool
                 fontSize = 92.sp, fontWeight = FontWeight.SemiBold,
                 color = if (calibrating) Warm.Calm else color,
             )
-            Text(label, fontSize = 26.sp, color = Warm.Text)
+            Text(label, fontSize = 26.sp, color = if (calibrating) Warm.Text else color) // "Exhausted" in the gauge color
         }
     }
 }
+
+/** Color of the user's state: the energy scale, except EXHAUSTED is always red (hysteresis can keep energy just above 25 %). */
+fun stateColor(f: FatigueState): Color = if (f.level == Level.EXHAUSTED) Warm.Rose else energyColor(f.energy)
 
 fun energyColor(energy: Int): Color = when {
     energy >= 75 -> Warm.Honey
