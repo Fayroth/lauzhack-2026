@@ -41,6 +41,11 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
   `"logiinsight-rgb"` (LogiInsight SDK face mesh on the RGB stream), `"logiinsight-ir"` (same on the IR stream: low light / glasses),
   `"mediapipe"` (fallback on any webcam). Mocks/fakes may send `"mock"`; older stubs may still send `"webcam"`.
 - `face=false` → other fields may be absent.
+- `face=true` with null eye fields (`ear`, `eyesClosed`, `blinkCount`, `lastBlinkMs`, `perclos`): the sidecar does not trust
+  the eyes right now: head turned more than ~25° (`headYaw`), or the first ~5 s of personal EAR calibration
+  (only `ear` is sent then). Consumers drop the missing signals, as for any absent field.
+- `headPitch` / `headYaw`: rough degrees from the mesh depth (sign not calibrated). `yawn`: only from the blendshape
+  `jawOpen` (> 0.6 for 1.5 s), otherwise always `false`.
 
 **Optional fields (added for the Logitech AI layers, all may be absent; consumers must handle null):**
 - Gaze, from Logi Gaze Tracker:
