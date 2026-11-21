@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,7 +57,7 @@ fun DashboardScreen(state: DashboardState) {
     Column(Modifier.fillMaxSize().background(moodBackground(state.fatigue)).padding(horizontal = 48.dp, vertical = 32.dp)) {
         // Header
         Row(verticalAlignment = Alignment.CenterVertically) {
-            EnergyGuardLogo(state.fatigue, Modifier.size(56.dp))
+            EnergyGuardLogo(state.fatigue, Modifier.height(32.dp).width(56.dp))
             Spacer(Modifier.width(16.dp))
             Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
             Spacer(Modifier.width(24.dp))
@@ -109,10 +108,22 @@ private fun GaugePanel(f: FatigueState) {
     Spacer(Modifier.height(8.dp))
     Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = energyColor(f.energy), textAlign = TextAlign.Center)
     // Top 3 reasons, so the jury sees WHY the gauge moved.
-    f.reasons.take(3).forEach { Text(it, fontSize = 21.sp, color = Warm.Muted) }
+    f.reasons.take(3).forEach { Text(readableReason(it), fontSize = 21.sp, color = Warm.Muted) }
     Spacer(Modifier.height(16.dp))
     EnergyTrend(history, Modifier.width(420.dp).height(90.dp))
     Text("your energy, last 5 minutes", fontSize = 16.sp, color = Warm.Faint)
+}
+
+/**
+ * The engine says "eyes closing +347%"; on screen a factor reads faster: "eyes closing ×4.5 vs usual".
+ * Display only, the engine's strings are unchanged. Reasons without a signed percentage pass through.
+ */
+private val signedPercent = Regex(""" ([+-]\d+)%$""")
+
+internal fun readableReason(reason: String): String {
+    val match = signedPercent.find(reason) ?: return reason
+    val factor = 1 + match.groupValues[1].toInt() / 100.0
+    return reason.substring(0, match.range.first) + " ×${factor.coerceAtLeast(0.0).fmt(1)} vs usual"
 }
 
 /** Samples the energy once per second (after calibration) and keeps the last [EnergyHistorySize] values. */

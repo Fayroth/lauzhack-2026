@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
@@ -33,6 +33,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.min
 import kotlin.math.sin
 
 /*
@@ -92,8 +93,14 @@ fun EnergyGuardLogo(fatigue: FatigueState, modifier: Modifier = Modifier) {
         label = "t",
     )
     Canvas(modifier) {
-        val s = size.minDimension / 64f
-        scale(s, s, pivot = Offset.Zero) {
+        // Fit the battery itself (stroke included: x 4..59.5, y 16..48 on the grid) to the available box,
+        // so the logo can be sized to match the title's height.
+        val s = min(size.width / 55.5f, size.height / 32f)
+        withTransform({
+            translate((size.width - 55.5f * s) / 2, (size.height - 32f * s) / 2)
+            scale(s, s, pivot = Offset.Zero)
+            translate(-4f, -16f)
+        }) {
             val inner = Path().apply { addRoundRect(RoundRect(IX, IY, IX + IW, IY + IH, CornerRadius(4.5f))) }
             clipPath(inner) {
                 drawPath(surfacePath(LEVEL - 1.2f, t - 0.25f, true), color.copy(alpha = 0.35f))
