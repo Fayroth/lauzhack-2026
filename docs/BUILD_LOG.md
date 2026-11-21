@@ -24,6 +24,8 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 18:35 | Isma | Blink quality, prototype camera RGB: frontal 10 detected for 10 voluntary blinks, a 6 s closure is unmistakable; half-closed eyes show as a trend (EAR ~50-85 % of personal baseline) but are noisy frame by frame (~8-9 % jitter) -> windowed, baseline-relative thresholds (PERCLOS) + hysteresis, never per-frame. Slight profile (20-30 deg): degraded (13 % mesh drops, left/right EAR diverge, ~2x false blinks) -> gate eye signals on headYaw. Glasses: tested by the team, OK (qualitative, no numbers). IR mesh: not tested (SDK doc does not show how). Matches the booth feedback: blinks OK, eyelid droop imprecise. |
 | Sat 18:35 | Isma | Decision: LogiInsight RGB feeds issue #3; MediaPipe stays the fallback behind the same FrameSource interface. Pitch wording: "blinks and long closures are reliable, eyelid droop is detected as a trend, not instantly; accuracy drops when the head is turned". |
 
+| Sat 18:45 | Ali | Demo inbox (#13): `ui/DemoInbox.kt`, 4 emails (PayPal lookalike phishing, legit EPFL news, 2 fillers); every link click goes through `LocalGuard` → Allow = page opened, Warn = "Are you sure?" dialog, Block = full red screen with reason + signals. Opened as a second window from `main.kt` (same `LocalGuard`), at start in demo mode, F2 otherwise |
+
 ## Reused resources
 | Resource | Link | Used for |
 |----------|------|----------|

@@ -60,6 +60,7 @@ EG_HAPTICS=mx ./gradlew :composeApp:run          # PowerShell: $env:EG_HAPTICS="
 # 6. Demo mode: scripted fatigue ramp through the real engine (FRESH ~20 s, TIRED ~60 s, EXHAUSTED ~90 s)
 EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; .\gradlew.bat :composeApp:run
 # Overrides EG_VISION / EG_INPUT (combine with EG_HAPTICS=mx for real vibration). F5 = restart the script.
+# A second window "EnergyGuard — Inbox" opens too (guardrail demo). Outside demo mode: F2 on the dashboard opens it.
 # A small "DEMO" marker is shown bottom-right.
 
 # 7. EnergyCoach (LLM): put OPENROUTER_API_KEY in .env (see .env.example). Without it -> offline templates.
