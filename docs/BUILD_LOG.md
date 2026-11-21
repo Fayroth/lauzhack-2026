@@ -26,6 +26,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 18:35 | Isma | Decision: LogiInsight RGB feeds issue #3; MediaPipe stays the fallback behind the same FrameSource interface. Pitch wording: "blinks and long closures are reliable, eyelid droop is detected as a trend, not instantly; accuracy drops when the head is turned". |
 
 | Sat 18:45 | Ali | Demo inbox (#13): `ui/DemoInbox.kt`, 4 emails (PayPal lookalike phishing, legit EPFL news, 2 fillers); every link click goes through `LocalGuard` → Allow = page opened, Warn = "Are you sure?" dialog, Block = full red screen with reason + signals. Opened as a second window from `main.kt` (same `LocalGuard`), at start in demo mode, F2 otherwise |
+| Sat 20:40 | Mehdi | Frugality counter + light/dark mode (#14): live strip under the tiles (real LLM calls from the coach, frames processed on this PC, 0 images / audio sent, 0 keys recorded); header toggle between the dark "evening" palette and a light "health" palette (white + green), every color contrast-checked for the projector (≥ 4:1); theme switch recomposes the whole UI including the demo inbox |
 
 ## Reused resources
 | Resource | Link | Used for |
