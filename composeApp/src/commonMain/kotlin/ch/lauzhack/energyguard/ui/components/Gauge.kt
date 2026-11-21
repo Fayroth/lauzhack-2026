@@ -6,13 +6,11 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,7 +29,8 @@ import androidx.compose.ui.unit.dp
 import ch.lauzhack.energyguard.model.Level
 
 /**
- * Concentration gauge: a 270° arc, value 0..100 in 96 sp in the middle, the level chip in the arc's opening.
+ * Concentration gauge: a 270° arc in the level colour, value 0..100 in 96 sp in the middle (the level name is the
+ * heading next to it, so no chip here).
  * While [calibrating], the arc stays empty and the middle shows [calibrationSecondsLeft].
  * Value, sweep and color animate over [EG_ANIM_MS].
  */
@@ -49,8 +48,7 @@ fun Gauge(
     val sweep by animateFloatAsState(target, tween(EG_ANIM_MS), label = "gaugeSweep")
     val number by animateIntAsState(if (calibrating) calibrationSecondsLeft else value.coerceIn(0, 100), tween(EG_ANIM_MS), label = "gaugeNumber")
     val color by animateColorAsState(if (calibrating) c.accent else c.level(level), tween(EG_ANIM_MS), label = "gaugeColor")
-    BoxWithConstraints(modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
-        val side = minOf(maxWidth, maxHeight)
+    Box(modifier.aspectRatio(1f), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val w = stroke.toPx()
             val inset = w / 2
@@ -63,13 +61,12 @@ fun Gauge(
             Text(if (calibrating) "${number}s" else "$number", style = EgType.gauge, color = if (calibrating) c.accent else c.text)
             Text(if (calibrating) "getting to know you" else "out of 100", style = EgType.label, color = c.muted)
         }
-        LevelChip(level, Modifier.align(Alignment.BottomCenter).padding(bottom = side * 0.02f), calibrating = calibrating)
     }
 }
 
-/** Horizontal battery (0..100) in its state color; [dimmed] while charging on a break is shown by the caller. */
+/** Horizontal energy battery (0..100): accent colour, TIRED amber below [BATTERY_LOW] (level colours are for state only). */
 @Composable
-fun BatteryBar(value: Int, modifier: Modifier = Modifier, color: Color = Eg.colors.forValue(value), height: Dp = 24.dp) {
+fun BatteryBar(value: Int, modifier: Modifier = Modifier, color: Color = batteryColor(value), height: Dp = 24.dp) {
     val c = Eg.colors
     val fraction by animateFloatAsState(value.coerceIn(0, 100) / 100f, tween(EG_ANIM_MS), label = "battery")
     val animatedColor by animateColorAsState(color, tween(EG_ANIM_MS), label = "batteryColor")
@@ -81,3 +78,9 @@ fun BatteryBar(value: Int, modifier: Modifier = Modifier, color: Color = Eg.colo
         }
     }
 }
+
+/** Battery below this (%) switches from the accent to the TIRED amber. */
+const val BATTERY_LOW = 30
+
+@Composable
+fun batteryColor(value: Int): Color = if (value < BATTERY_LOW) Eg.colors.tired else Eg.colors.accent
