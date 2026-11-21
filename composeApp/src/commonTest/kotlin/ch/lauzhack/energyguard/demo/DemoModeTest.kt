@@ -1,8 +1,6 @@
 package ch.lauzhack.energyguard.demo
 
-import ch.lauzhack.energyguard.input.mockInputStats
 import ch.lauzhack.energyguard.model.Level
-import ch.lauzhack.energyguard.vision.mockVisionFrame
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals

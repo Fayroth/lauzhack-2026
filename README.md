@@ -68,9 +68,26 @@ EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; 
 
 # 8. Real-world guardrail in Chrome (incl. real Gmail): see "Chrome extension" below.
 
-# Android companion (debug APK)
-./gradlew :composeApp:assembleDebug
+# 9. Android: same shared engine + demo script, live on a phone (see "Android" below)
+./gradlew :composeApp:installDebug      # Windows: .\gradlew.bat :composeApp:installDebug
 ```
+
+### Android (2nd platform, #41)
+The phone runs the **same `commonMain` code** as the desktop demo mode: `DemoScript` + sample builders → `FatigueEngine`
+(baseline, score, reasons) → `FrugalEnergyCoach` (offline templates: no API key on the phone) → `HapticTrigger` →
+the shared Compose `App()` dashboard, scaled to the screen in landscape. The gauge drops live: FRESH → TIRED ~60 s → EXHAUSTED ~90 s,
+the phone vibrates on TIRED (1 buzz) and EXHAUSTED (3 buzzes). **Replay** (bottom-left) = desktop F5.
+
+| Shared (`commonMain`, both platforms) | Platform-specific |
+|---|---|
+| models, `FatigueEngine`, `Guardrail`, `EnergyCoach` + OpenRouter client, `DemoScript`, `HapticTrigger`, `HapticOutput` interface, whole dashboard UI | **Desktop:** webcam sidecar over WebSocket, JNativeHook mouse/keyboard, MX Master 4 haptics, Chrome guard endpoint, inbox window. **Android:** `MainActivity`, phone `Vibrator`. No camera, WebSocket or JNativeHook on Android. |
+
+Install on a Samsung Galaxy (USB):
+1. Phone: **Settings → About phone → Software information** → tap **Build number** 7 times → enter your PIN ("Developer mode turned on").
+2. **Settings → Developer options** → turn on **USB debugging**.
+3. Plug the phone into the PC (data cable), unlock it, accept **"Allow USB debugging?"** (tick "Always allow from this computer").
+4. Check: `adb devices` lists it as `device` (adb is in `<Android SDK>/platform-tools`). `unauthorized` = accept the prompt on the phone.
+5. `.\gradlew.bat :composeApp:installDebug`, then open **EnergyGuard** from the app drawer.
 
 ### Chrome extension (real-world guardrail, #43)
 The desktop app listens on `http://127.0.0.1:8766/guard` (only while it runs; port `EG_GUARD_PORT`). The extension in
@@ -99,6 +116,7 @@ If a feature needs API keys: `cp .env.example .env` and fill it in (never commit
 | `composeApp/src/commonMain/.../ui` | Compose dashboard shared by desktop + Android | Mehdi |
 | `composeApp/src/desktopMain/.../input`, `haptics` | Mouse/keyboard collectors (JNativeHook), MX Master 4 haptics | Zyad |
 | `composeApp/src/desktopMain/.../vision` | WebSocket client to the sidecar + mock | Ali / Isma |
+| `composeApp/src/commonMain/.../demo`, `androidMain` | Shared demo script + sample builders, Android app | Ali |
 | `vision/` | Python sidecar: webcam/IR → MediaPipe → eye metrics → WebSocket | Isma |
 
 ## What's next
