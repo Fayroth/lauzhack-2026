@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,6 +31,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.lauzhack.energyguard.app.AppStore
+import ch.lauzhack.energyguard.app.JsonFilePersistence
+import ch.lauzhack.energyguard.app.localDayKey
+import ch.lauzhack.energyguard.app.textFilesIn
 import ch.lauzhack.energyguard.coach.FrugalEnergyCoach
 import ch.lauzhack.energyguard.companion.CompanionBanner
 import ch.lauzhack.energyguard.companion.LiveCompanion
@@ -61,27 +66,40 @@ private val DESIGN_HEIGHT = 800.dp
  * No camera, WebSocket or JNativeHook here (desktop only). "Replay" restarts the script (desktop: F5).
  * Phone companion (#48): once paired with a PC running EG_COMPANION=1, the phone mirrors the PC's LIVE state instead
  * (read-only poll of GET /state, companion/PhoneCompanion.kt); connection lost -> banner + this demo replay as fallback.
+ * App model (M1): an AppStore (journal + settings in filesDir, no history: the phone only runs the demo engine) is fed
+ * by the local demo replay. The dashboard still renders DashboardState exactly as before.
  */
 class MainActivity : ComponentActivity() {
+    private lateinit var store: AppStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // demo on a table: never dims
         val haptics = VibratorHapticOutput(this)
         val prefs = PairingPrefs(this)
-        setContent { PhoneRoot(haptics, prefs) }
+        store = AppStore(
+            System::currentTimeMillis, ::localDayKey, JsonFilePersistence(textFilesIn(filesDir.absolutePath)),
+            demo = true, persistHistory = false,
+        )
+        setContent { PhoneRoot(haptics, prefs, store) }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        store.flush()
     }
 }
 
 /** Pairing screen -> live mirror of the PC; "Demo without PC" -> the local demo replay. */
 @Composable
-private fun PhoneRoot(haptics: HapticOutput, prefs: PairingPrefs) {
+private fun PhoneRoot(haptics: HapticOutput, prefs: PairingPrefs, store: AppStore) {
     var target by remember { mutableStateOf(prefs.load()) }
     var pairing by remember { mutableStateOf(target == null) }
     var demoOnly by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val pairAgain = { pairing = true; demoOnly = false }
     when {
-        demoOnly -> AndroidDemoApp(haptics, banner = null, onPair = pairAgain)
+        demoOnly -> AndroidDemoApp(haptics, store, banner = null, onPair = pairAgain)
         pairing || target == null -> PairingScreen(
             lastHost = prefs.lastHost(), lastPort = prefs.lastPort(), error = error,
             onConnect = { t: PairingTarget -> prefs.save(t); target = t; error = null; pairing = false },
@@ -100,7 +118,7 @@ private fun PhoneRoot(haptics: HapticOutput, prefs: PairingPrefs) {
                     Text("LIVE from your PC", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color(0xFF81C784))
                 }
             },
-            offline = { banner -> AndroidDemoApp(haptics, banner, onPair = pairAgain) },
+            offline = { banner -> AndroidDemoApp(haptics, store, banner, onPair = pairAgain) },
         )
     }
 }
@@ -118,7 +136,7 @@ private fun ScaledDashboard(state: DashboardState) {
 }
 
 @Composable
-private fun AndroidDemoApp(haptics: HapticOutput, banner: String?, onPair: () -> Unit) {
+private fun AndroidDemoApp(haptics: HapticOutput, store: AppStore, banner: String?, onPair: () -> Unit) {
     var run by remember { mutableStateOf(0) } // Replay: fresh engine + haptic cooldown, script from 0
     val engine = remember(run) { DemoScript.newEngine() }
     val hapticTrigger = remember(run) { HapticTrigger() }
@@ -136,29 +154,35 @@ private fun AndroidDemoApp(haptics: HapticOutput, banner: String?, onPair: () ->
         while (true) {
             val now = System.currentTimeMillis()
             val tired = DemoScript.tiredness(now - start)
-            mockVisionFrame(now, tired).also { lastVision = it; engine.onVision(it) }
-            if (tick % 10 == 0L) mockInputStats(tired).also { lastInput = it; engine.onInput(it, now) }
+            mockVisionFrame(now, tired).also { lastVision = it; engine.onVision(it); store.onVision(it) }
+            if (tick % 10 == 0L) {
+                mockInputStats(tired).also { lastInput = it; engine.onInput(it, now); store.onInput(it, now) }
+                store.tick(now)
+            }
             tick++
             delay(100)
         }
     }
     LaunchedEffect(fatigue.level) {
-        hapticTrigger.onLevel(fatigue.level, System.currentTimeMillis())?.let { haptics.pulse(it) }
+        hapticTrigger.onLevel(fatigue.level, System.currentTimeMillis())?.let { if (store.state.value.settings.hapticsOn) haptics.pulse(it) }
     }
     LaunchedEffect(engine) {
         coach.reset()
         engine.state.collect { s -> coach.onFatigue(s, localTimeHHmm()) }
     }
+    LaunchedEffect(engine) { engine.state.collect { store.onFatigue(it, System.currentTimeMillis(), engine.baselineSummary()) } }
+    LaunchedEffect(coachMessage, llmCalls) { store.onCoach(coachMessage, llmCalls) }
+    LaunchedEffect(run) { if (run > 0) store.resetRun() }
 
     Box(Modifier.fillMaxSize().background(Warm.Night).safeDrawingPadding()) {
-        ScaledDashboard(
-            DashboardState(
-                fatigue, lastVision, lastInput, coachMessage, llmCalls,
-                calibrationMs = DemoScript.CALIBRATION_MS,
-                windowMs = DemoScript.WINDOW_MS,
-                runId = run,
-            )
+        val dashboard = DashboardState(
+            fatigue, lastVision, lastInput, coachMessage, llmCalls,
+            calibrationMs = DemoScript.CALIBRATION_MS,
+            windowMs = DemoScript.WINDOW_MS,
+            runId = run,
         )
+        SideEffect { store.setDashboard(dashboard) }
+        ScaledDashboard(dashboard)
         banner?.let { CompanionBanner(it, Color(0xFFC62828), Modifier.align(Alignment.TopCenter).padding(8.dp)) }
         Row(Modifier.align(Alignment.BottomStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { run++ }) { Text("Replay", fontSize = 14.sp, color = Warm.Muted) }
