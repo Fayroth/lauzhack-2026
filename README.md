@@ -66,9 +66,29 @@ EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; 
 # 7. EnergyCoach (LLM): put OPENROUTER_API_KEY in .env (see .env.example). Without it -> offline templates.
 # Coach messages are printed as "[coach] ..." in the console. EG_COACH=offline forces templates, EG_COACH_MODEL=<id> changes the model.
 
+# 8. Real-world guardrail in Chrome (incl. real Gmail): see "Chrome extension" below.
+
 # Android companion (debug APK)
 ./gradlew :composeApp:assembleDebug
 ```
+
+### Chrome extension (real-world guardrail, #43)
+The desktop app listens on `http://127.0.0.1:8766/guard` (only while it runs; port `EG_GUARD_PORT`). The extension in
+`extension/` sends it each link you click to another site and shows the same Allow / Warn / Block as the demo inbox.
+1. Start the app (e.g. `$env:EG_DEMO="1"; .\gradlew.bat :composeApp:run`). Console: `[guard] Chrome extension endpoint on ...`.
+2. Chrome → `chrome://extensions` → enable **Developer mode** (top right) → **Load unpacked** → pick the `extension/` folder.
+   The id must be `mchiibilichfmibgecnoaheikiajhclo` (pinned by the `key` in `manifest.json`; the app only accepts that id,
+   override with `EG_EXTENSION_ID`).
+3. Click a link. Block = red screen + MX vibration, Warn = "Go back" / "Open anyway", Allow = opens normally.
+   App closed or slow (> 300 ms) → links open normally (fail open).
+
+What it can / can't see:
+- **Permissions:** content script on http/https pages (to see link clicks) + `http://127.0.0.1/*` (to talk to our app). Nothing else:
+  no tabs, history, cookies, storage, or remote server.
+- **Sent:** for a click on a link to *another* site, only the link text + real URL, only to 127.0.0.1. Same-site clicks are ignored.
+  Never page content, email bodies, images or keystrokes.
+- **App side:** accepts requests only from our extension's `Origin` (a web page can't read your fatigue), binds to 127.0.0.1 only,
+  validates input, stores/logs nothing but a counter and the verdict.
 
 If a feature needs API keys: `cp .env.example .env` and fill it in (never commit `.env`).
 

@@ -4,11 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +30,7 @@ import ch.lauzhack.energyguard.coach.localTimeHHmm
 import ch.lauzhack.energyguard.demo.DemoClock
 import ch.lauzhack.energyguard.demo.DemoScript
 import ch.lauzhack.energyguard.engine.FatigueEngine
+import ch.lauzhack.energyguard.guard.GuardServer
 import ch.lauzhack.energyguard.guardrail.GuardedAction
 import ch.lauzhack.energyguard.guardrail.Guardrail
 import ch.lauzhack.energyguard.guardrail.LocalGuard
@@ -61,6 +64,7 @@ private const val VISION_STALE_MS = 2_000L
  * Coach: EnergyCoach on level changes (OpenRouter if OPENROUTER_API_KEY is set, else offline templates; EG_COACH=offline forces templates).
  * Demo mode (EG_DEMO=1): scripted fatigue ramp into the same engine (demo/DemoMode.kt), F5 replays it, "DEMO" marker.
  * Inbox: second window "EnergyGuard — Inbox" (guardrail demo, ui/DemoInbox.kt), open at start in demo mode, F2 on the dashboard opens it.
+ * Chrome guard (#43): POST http://127.0.0.1:8766/guard for extension/ (guard/GuardServer.kt), same `guard` function as LocalGuard.
  */
 fun main() = application {
     val demo = remember { System.getenv("EG_DEMO") == "1" }
@@ -82,11 +86,18 @@ fun main() = application {
     }
     val coach = remember { desktopEnergyCoach() } // not keyed on demoRun: the rate limit and the call counter stay real
     val guardrail = remember { Guardrail() }
-    // UI calls LocalGuard.current(action): checked against the latest fatigue, mouse vibrates on every Block.
-    val guard: (GuardedAction) -> Verdict = remember(engine) {
+    // ONE guard function for the inbox (LocalGuard) and the Chrome extension (GuardServer): checked against the latest
+    // fatigue of the current engine (F5 swaps it), mouse vibrates on every Block. Called from the UI thread or Ktor threads:
+    // Guardrail is pure, StateFlow.value is thread-safe.
+    val currentEngine by rememberUpdatedState(engine)
+    val guard: (GuardedAction) -> Verdict = remember {
         { action ->
-            guardrail.check(action, engine.state.value).also { if (it is Verdict.Block) haptics.pulse(HapticPattern.WARNING) }
+            guardrail.check(action, currentEngine.state.value).also { if (it is Verdict.Block) haptics.pulse(HapticPattern.WARNING) }
         }
+    }
+    DisposableEffect(Unit) {
+        val server = GuardServer.fromEnv(guard) { currentEngine.state.value.level }.also { it.start() }
+        onDispose { server.stop() }
     }
 
     var showInbox by remember { mutableStateOf(demo) }

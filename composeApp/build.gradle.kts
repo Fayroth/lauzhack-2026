@@ -44,6 +44,8 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.websockets)
+            implementation(libs.ktor.server.core) // local guard endpoint for the Chrome extension (127.0.0.1 only)
+            implementation(libs.ktor.server.cio)
             implementation(libs.jnativehook)
             implementation(libs.hid4java)
         }

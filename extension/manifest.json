@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "EnergyGuard Link Guard",
+  "version": "1.0.0",
+  "description": "Raises your guard on risky links when EnergyGuard sees you are tired. Talks only to the EnergyGuard app on 127.0.0.1.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqXjdHudb50Mmsg+ZRedp55+rGqrotNk0nslEwGarICtPLVjNHuwV86T0M9ba1JmOaZI0Qs0Q450uazBZ1fz0/svVZZZg0JyLrY+zFIQwrvW+7upmYU0GSLaWh86zUvf7NqHhPde9lPHCrz2ilaLxPFVRw2N0WK+CQzfhkAnR5OJt9AX1YXzjyftAzuKOHyMmrb1i6K0ylKXaj7o7OgrRpIhe74IoK3q5hL7wNrL0HtSNEO5xg7dlTODTkO/au4XAp1nfFius6HGThOh2JM3BDfo3IWZmy/vVj7azwhJElXWBmfQi1zolCQfMIltlk8DvlI+Uyl/RWHFmL2tFP4n3gwIDAQAB",
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}
