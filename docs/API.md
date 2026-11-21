@@ -405,6 +405,11 @@ to `<name>.bad` first). Atomic write (temp file + rename). Nothing is sent anywh
   same-day restart resumes today's battery and counters.
 - Desktop demo mode uses an in-memory store (nothing written). Android (demo engine) keeps journal + settings, no history.
 
+## Desktop shortcuts vs text fields (M2b)
+Window shortcuts (`1` / `2` / `3` tabs, `F2` inbox, `F5` demo replay; `desktopMain/ui/Shortcuts.kt`) are ignored while a
+text field has focus. **Every text field must use `Modifier.tracksTextFocus()`** (`commonMain/ui/components/TextFieldFocus.kt`),
+otherwise typing "1" in it switches tabs.
+
 ## Sources (desktop)
 ```kotlin
 interface VisionSource { fun frames(): Flow<VisionFrame> }   // MockVisionSource, WebSocketVisionSource

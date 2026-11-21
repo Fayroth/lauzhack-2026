@@ -1,7 +1,17 @@
 package ch.lauzhack.energyguard.ui.today
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -12,7 +22,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,7 +52,7 @@ import ch.lauzhack.energyguard.ui.components.Pill
 import ch.lauzhack.energyguard.ui.components.StatTile
 import ch.lauzhack.energyguard.ui.components.durationParts
 import ch.lauzhack.energyguard.ui.components.hoursText
-import ch.lauzhack.energyguard.ui.components.levelHint
+import ch.lauzhack.energyguard.ui.components.levelLabel
 import ch.lauzhack.energyguard.ui.components.levelSentence
 import ch.lauzhack.energyguard.ui.components.plainReason
 import ch.lauzhack.energyguard.ui.factorize
@@ -73,7 +82,13 @@ fun TodayScreen(state: AppState, actions: TodayActions, modifier: Modifier = Mod
                 RecoveryCard(state, actions, Modifier.fillMaxWidth().weight(1f))
             }
         }
-        CoachCard(state.coach, Modifier.fillMaxWidth(), format = ::factorize)
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(EgSpace.s)) {
+            CoachCard(state.coach, Modifier.weight(0.55f).fillMaxHeight(), format = ::factorize)
+            LiveSignalsCard(
+                state.dashboard.vision, state.dashboard.input, state.profile.baseline, state.demo,
+                Modifier.weight(0.45f).fillMaxHeight(),
+            )
+        }
         StatsRow(state)
     }
 }
@@ -100,7 +115,7 @@ private fun ConcentrationCard(state: AppState, modifier: Modifier) {
                     Text("Learning", style = EgType.value, color = c.text)
                     Text("Your normal blinks, mouse and typing rhythm. Just work as usual.", style = EgType.lead, color = c.muted)
                 } else {
-                    Text(levelHint(conc.level), style = EgType.value, color = c.level(conc.level))
+                    Text(levelLabel(conc.level), style = EgType.value, color = c.level(conc.level))
                     Text(levelSentence(conc.level), style = EgType.lead, color = c.muted)
                     Spacer(Modifier.height(EgSpace.xs))
                     Text("WHY", style = EgType.label, color = c.muted)
@@ -158,24 +173,37 @@ private fun RecoveryCard(state: AppState, actions: TodayActions, modifier: Modif
         Spacer(Modifier.weight(1f))
         // Last night's sleep: drives the battery start and the recovery score (store.setSleepHours on release).
         var hours by remember(state.settings.sleepHours) { mutableFloatStateOf(state.settings.sleepHours.toFloat()) }
+        val range = Settings.MIN_SLEEP_HOURS.toFloat()..Settings.MAX_SLEEP_HOURS.toFloat()
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Last night", style = EgType.label, color = c.muted)
             Spacer(Modifier.width(EgSpace.s))
+            // Own thumb + track: M3's default draws a bar thumb, a gap and a stop dot at the end.
             Slider(
                 value = hours,
                 onValueChange = { hours = (it * 2).roundToInt() / 2f },
                 onValueChangeFinished = { actions.onSleepHours(hours.toDouble()) },
-                valueRange = Settings.MIN_SLEEP_HOURS.toFloat()..Settings.MAX_SLEEP_HOURS.toFloat(),
-                steps = 11,
+                valueRange = range,
                 modifier = Modifier.weight(1f).height(32.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = c.accent, activeTrackColor = c.accent, inactiveTrackColor = c.track,
-                    activeTickColor = c.accent, inactiveTickColor = c.track,
-                ),
+                thumb = { Box(Modifier.size(20.dp).shadow(2.dp, CircleShape).background(c.accent, CircleShape)) },
+                track = { SleepTrack((hours - range.start) / (range.endInclusive - range.start)) },
             )
             Spacer(Modifier.width(EgSpace.s))
-            Text(hoursText(hours.toDouble()), style = EgType.bodyStrong, color = c.text, modifier = Modifier.width(56.dp))
+            Text(
+                hoursText(hours.toDouble()), style = EgType.bodyStrong, color = c.text,
+                textAlign = TextAlign.End, modifier = Modifier.width(48.dp),
+            )
         }
+    }
+}
+
+/** 8 dp rounded track: accent up to [fraction], track colour after. No ticks, no end dot. */
+@Composable
+private fun SleepTrack(fraction: Float) {
+    val c = Eg.colors
+    Canvas(Modifier.fillMaxWidth().height(8.dp)) {
+        val r = CornerRadius(size.height / 2)
+        drawRoundRect(c.track, cornerRadius = r)
+        drawRoundRect(c.accent, size = Size(size.width * fraction.coerceIn(0f, 1f), size.height), cornerRadius = r)
     }
 }
 

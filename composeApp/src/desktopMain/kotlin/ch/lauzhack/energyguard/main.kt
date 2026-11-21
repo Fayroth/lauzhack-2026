@@ -13,7 +13,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -56,7 +55,10 @@ import ch.lauzhack.energyguard.ui.BreakAlertOverlay
 import ch.lauzhack.energyguard.ui.DashboardState
 import ch.lauzhack.energyguard.ui.DemoInbox
 import ch.lauzhack.energyguard.ui.DesktopShell
+import ch.lauzhack.energyguard.ui.Shortcut
 import ch.lauzhack.energyguard.ui.Tab
+import ch.lauzhack.energyguard.ui.components.TextFieldFocus
+import ch.lauzhack.energyguard.ui.shortcutFor
 import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.brand.energyGuardIcon
 import ch.lauzhack.energyguard.vision.MockVisionSource
@@ -83,7 +85,8 @@ private const val VISION_STALE_MS = 2_000L
  * fed a snapshot of the dashboard state after each recomposition. Off by default: nothing more listens.
  * App model (M1): AppStore (app/AppStore.kt) is fed the same events (engine, coach, guard blocks, 1 s tick) and persists
  * journal/settings/history in ~/.energyguard/ (in memory in demo mode).
- * UI (M2): DesktopShell (ui/DesktopShell.kt) renders AppStore.state only: rail Today / Journal / Profile (keys 1 / 2 / 3),
+ * UI (M2): DesktopShell (ui/DesktopShell.kt) renders AppStore.state only: rail Today / Journal / Profile (keys 1 / 2 / 3,
+ * ignored like F2 / F5 while a text field has focus: ui/Shortcuts.kt),
  * theme = Settings.theme (header toggle -> store.updateSettings). Break alert overlay drawn on top, as before.
  */
 fun main() = application {
@@ -192,13 +195,13 @@ fun main() = application {
             state = rememberWindowState(position = WindowPosition(Alignment.Center), size = defaultWindowSize()),
             onKeyEvent = {
                 if (it.type != KeyEventType.KeyDown || it.isCtrlPressed || it.isAltPressed) return@Window false
-                when (it.key) {
-                    Key.F5 -> if (demo) { demoClock.restart(); demoRun++; store.resetRun(); true } else false
-                    Key.F2 -> { showInbox = true; true }
-                    Key.One, Key.NumPad1 -> { tab = Tab.TODAY; true }
-                    Key.Two, Key.NumPad2 -> { tab = Tab.JOURNAL; true }
-                    Key.Three, Key.NumPad3 -> { tab = Tab.PROFILE; true }
-                    else -> false
+                when (shortcutFor(it.key, TextFieldFocus.active)) { // typing in a text field: no shortcuts
+                    Shortcut.REPLAY_DEMO -> if (demo) { demoClock.restart(); demoRun++; store.resetRun(); true } else false
+                    Shortcut.OPEN_INBOX -> { showInbox = true; true }
+                    Shortcut.TAB_TODAY -> { tab = Tab.TODAY; true }
+                    Shortcut.TAB_JOURNAL -> { tab = Tab.JOURNAL; true }
+                    Shortcut.TAB_PROFILE -> { tab = Tab.PROFILE; true }
+                    null -> false
                 }
             },
         ) {
