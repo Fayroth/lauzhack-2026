@@ -57,7 +57,6 @@ fun App(state: DashboardState) {
         Box(Modifier.fillMaxSize()) {
             DashboardScreen(state)
             key(state.runId) { BreakAlertOverlay(state.fatigue, state.coach, demo) } // F5 replay: fresh alert state
-            KssPrompt(state, demo)
         }
     }
 }
@@ -131,7 +130,6 @@ private fun GaugePanel(state: DashboardState) {
         Spacer(Modifier.width(16.dp))
         Text("energy\nlast 5 min", fontSize = 16.sp, color = Warm.Faint)
     }
-    KssSummary(Modifier.padding(top = 8.dp))
 }
 
 /** "last minute" (real engine, 60 s window) or "last 10 s" (demo mode). */
