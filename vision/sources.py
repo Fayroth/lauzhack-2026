@@ -198,14 +198,14 @@ def _load_blendshapes(model_path: Path | None):
         return None
 
 
-def open_source(kind: str, model_path: Path, camera: int, rgb_device: int | None):
+def open_source(kind: str, model_path: Path, camera: int, rgb_device: int | None, blendshapes: bool = True):
     """kind: auto | logiinsight | mediapipe. auto = LogiInsight first, MediaPipe if it is unavailable."""
     order = {"auto": ["logiinsight", "mediapipe"], "logiinsight": ["logiinsight"], "mediapipe": ["mediapipe"]}[kind]
     errors = []
     for k in order:
         try:
             if k == "logiinsight":
-                return LogiInsightSource(model_path, rgb_device)
+                return LogiInsightSource(model_path if blendshapes else None, rgb_device)
             return MediaPipeSource(model_path, camera)
         except SourceUnavailable as e:
             print(f"[vision] {k} unavailable: {e}")
