@@ -57,6 +57,11 @@ EG_INPUT=real ./gradlew :composeApp:run          # PowerShell: $env:EG_INPUT="re
 EG_HAPTICS=mx ./gradlew :composeApp:run          # PowerShell: $env:EG_HAPTICS="mx"; .\gradlew.bat :composeApp:run
 # The mouse buzzes once at startup if it is found; otherwise you hear a beep.
 
+# 6. Demo mode: scripted fatigue ramp through the real engine (FRESH ~20 s, TIRED ~60 s, EXHAUSTED ~90 s)
+EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; .\gradlew.bat :composeApp:run
+# Overrides EG_VISION / EG_INPUT (combine with EG_HAPTICS=mx for real vibration). F5 = restart the script.
+# A small "DEMO" marker is shown bottom-right.
+
 # Android companion (debug APK)
 ./gradlew :composeApp:assembleDebug
 ```
