@@ -179,3 +179,5 @@ Demo phishing email (the one the tests use, copy it into the inbox):
 interface VisionSource { fun frames(): Flow<VisionFrame> }   // MockVisionSource, WebSocketVisionSource
 interface InputSource  { fun stats(): Flow<InputStats> }     // MockInputSource, JNativeHookInputSource (EG_INPUT=real)
 ```
+- `MockVisionSource(tiredness)` / `MockInputSource(tiredness)` take an optional `() -> Double` (0..1, default = slow oscillation).
+  Demo mode (`EG_DEMO=1`) passes the scripted ramp of `demo/DemoMode.kt` and uses `FatigueEngine(calibrationMs = 15 s, windowMs = 10 s)`.
