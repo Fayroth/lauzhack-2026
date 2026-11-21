@@ -28,6 +28,7 @@ import ch.lauzhack.energyguard.haptics.HapticOutput
 import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.Level
 import ch.lauzhack.energyguard.model.VisionFrame
+import ch.lauzhack.energyguard.ui.journal.JournalActions
 import ch.lauzhack.energyguard.ui.phone.PhoneProfileScreen
 import ch.lauzhack.energyguard.ui.phone.PhoneShell
 import ch.lauzhack.energyguard.ui.today.TodayActions
@@ -95,6 +96,11 @@ fun AndroidShell(haptics: HapticOutput, prefs: PairingPrefs, store: AppStore, on
         today = remember(store) { TodayActions(store::startBreak, store::endBreak, store::setSleepHours) },
         onReplay = { run++ },
         notice = if (recoveredAt != null) "Your PC says you're recharged: you can go back" else null,
+        // Saved in the phone's own store. While paired, "we measured" = the PC's live concentration (ours is idle then).
+        journal = JournalActions(
+            onSave = { k, s, c, n -> store.addJournalEntry(k, s, c, n, concentration = live?.let { shown.concentration.value }) },
+            onDelete = store::deleteJournalEntry,
+        ),
     ) {
         PhoneProfileScreen(
             link = companion.link,
@@ -143,7 +149,7 @@ private fun DemoReplay(store: AppStore, run: Int) {
     }
     LaunchedEffect(engine) {
         coach.reset()
-        engine.state.collect { s -> coach.onFatigue(s, localTimeHHmm()) }
+        engine.state.collect { s -> coach.onFatigue(s, localTimeHHmm(), checkIn = store.coachCheckIn()) }
     }
     LaunchedEffect(engine) { engine.state.collect { store.onFatigue(it, System.currentTimeMillis(), engine.baselineSummary()) } }
     LaunchedEffect(coachMessage, llmCalls) { store.onCoach(coachMessage, llmCalls) }

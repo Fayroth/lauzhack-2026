@@ -17,7 +17,18 @@ import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.model.FatigueState
 import ch.lauzhack.energyguard.model.Level
+import ch.lauzhack.energyguard.ui.components.Eg
+import ch.lauzhack.energyguard.ui.components.EgTheme
+import ch.lauzhack.energyguard.ui.journal.JournalActions
+import ch.lauzhack.energyguard.ui.journal.JournalDraft
+import ch.lauzhack.energyguard.ui.journal.JournalScreen
 import ch.lauzhack.energyguard.ui.today.TodayActions
+import ch.lauzhack.energyguard.app.JournalEntry
+import ch.lauzhack.energyguard.app.localDayKey
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -28,6 +39,8 @@ import kotlin.test.assertTrue
  * states: a smoke test that every screen composes, plus PNGs in build/screens/ to check against the visual rules
  * (copied to docs/screens/ by hand).
  */
+private const val HOUR_MS = 3_600_000L
+
 class ShellRenderTest {
     private val tired = FatigueState(68, Level.TIRED, listOf("eyes closing +347%", "long blinks +80%", "slower typing +32%"), calibrated = true)
 
@@ -79,5 +92,38 @@ class ShellRenderTest {
         sample(ThemeMode.DARK, FatigueState(86, Level.EXHAUSTED, listOf("eyes closing +520%", "shaky mouse +70%"), calibrated = true), battery = 24),
     )
     @Test fun todaySmallWindow() = render("today-dark-1280x680", sample(ThemeMode.DARK), w = 1280, h = 680)
-    @Test fun journalPlaceholder() = render("journal-light", sample(ThemeMode.LIGHT), Tab.JOURNAL)
+    /** A few days of check-ins, newest first, with today = the real local day (so "Today" / "Yesterday" labels show). */
+    internal fun withJournal(s: AppState, count: Int = 12): AppState {
+        val now = System.currentTimeMillis()
+        val entries = (0 until count).map { i ->
+            val kss = listOf(7, 6, 3, 4, 8, 2, 5, 6, 3, 7, 4, 5)[i % 12]
+            JournalEntry(
+                id = now - i * 3 * HOUR_MS, ts = now - i * 3 * HOUR_MS,
+                kss = kss, stress = if (i % 3 == 0) null else (kss + 1) / 2, caffeine = if (i % 2 == 0) i % 4 else null,
+                note = if (i == 0) "Long meeting after lunch, eyes heavy." else null,
+                concentration = (100 - kss * 10 + (i % 3) * 4).coerceIn(0, 100),
+            )
+        }
+        return s.copy(journal = entries, stats = s.stats.copy(day = localDayKey(now)))
+    }
+
+    @Test fun journalDark() = render("journal-dark", withJournal(sample(ThemeMode.DARK)), Tab.JOURNAL)
+    @Test fun journalLight() = render("journal-light", withJournal(sample(ThemeMode.LIGHT), count = 4), Tab.JOURNAL)
+    @Test fun journalEmptyDark() = render("journal-dark-empty", sample(ThemeMode.DARK), Tab.JOURNAL)
+
+    /** The form filled in (selected states), at the size the shell gives it. */
+    @Test fun journalDraftDark() {
+        val bytes = ImageComposeScene(1270, 760, Density(1f)).use { scene ->
+            scene.setContent {
+                EgTheme(ThemeMode.DARK) {
+                    Box(Modifier.fillMaxSize().background(Eg.colors.background)) {
+                        JournalScreen(withJournal(sample(ThemeMode.DARK), 3), JournalActions(), wide = true, draft = JournalDraft(7, 2, 3, "Coffee after lunch"))
+                    }
+                }
+            }
+            scene.render(0)
+            scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes
+        }
+        assertTrue(File("build/screens/journal-dark-draft.png").apply { parentFile.mkdirs(); writeBytes(bytes) }.length() > 10_000)
+    }
 }

@@ -32,7 +32,7 @@ class CompanionCompatTest {
         store.setDashboard(DashboardState(fatigue = FatigueState(62, Level.TIRED, listOf("long blinks +80%"), true)))
         store.onGuardBlock()
         store.startBreak()
-        store.addJournalEntry(kss = 7, note = "SECRET-NOTE")
+        store.addJournalEntry(kss = 7, stress = 4, caffeine = 3, note = "SECRET-NOTE")
         return CompanionJson.encodeToString(CompanionState.serializer(), store.state.value.toCompanionState(clock.now))
     }
 
@@ -68,6 +68,8 @@ class CompanionCompatTest {
         assertFalse("SECRET-NOTE" in json, json)
         assertFalse("journal" in json, json)
         assertFalse("kss" in json, json)
+        assertFalse("stress" in json, json)
+        assertFalse("caffeine" in json, json)
     }
 
     @Test fun phoneClampsUntrustedValues() {

@@ -1,5 +1,6 @@
 package ch.lauzhack.energyguard.app
 
+import ch.lauzhack.energyguard.coach.CoachCheckIn
 import ch.lauzhack.energyguard.coach.CoachMessage
 import ch.lauzhack.energyguard.engine.BaselineSummary
 import ch.lauzhack.energyguard.model.FatigueState
@@ -177,11 +178,21 @@ class AppStore(
         publish()
     }
 
-    /** Adds a check-in (all optional, out-of-range values dropped). Returns null if nothing valid was given. */
-    fun addJournalEntry(kss: Int? = null, stress: Int? = null, caffeine: Int? = null, note: String? = null): JournalEntry? {
+    /**
+     * Adds a check-in (all optional, out-of-range values dropped). Returns null if nothing valid was given.
+     * [concentration] = the value to record with it; null = ours (the phone passes the PC's while paired).
+     */
+    fun addJournalEntry(
+        kss: Int? = null,
+        stress: Int? = null,
+        caffeine: Int? = null,
+        note: String? = null,
+        concentration: Int? = null,
+    ): JournalEntry? {
         val now = clock()
         val id = max(now, (journal.maxOfOrNull { it.id } ?: Long.MIN_VALUE) + 1)
-        val entry = JournalEntry(id, now, kss, stress, caffeine, note, concentration = 100 - fatigue.score).sanitized()
+        val measured = (concentration ?: (100 - fatigue.score)).coerceIn(0, 100)
+        val entry = JournalEntry(id, now, kss, stress, caffeine, note, concentration = measured).sanitized()
         if (entry.isEmpty) return null
         journal = (listOf(entry) + journal).take(JournalEntry.MAX_ENTRIES)
         persistence.saveJournal(journal)
@@ -195,6 +206,15 @@ class AppStore(
         journal = next
         persistence.saveJournal(journal)
         publish()
+    }
+
+    /** Today's latest check-in with a KSS, stress or caffeine value, as numbers only (EnergyCoach input). Never the note. */
+    fun coachCheckIn(): CoachCheckIn? {
+        for (e in journal) {
+            if (dayKey(e.ts) != stats.day) return null
+            if (e.kss != null || e.stress != null || e.caffeine != null) return CoachCheckIn(e.kss, e.stress, e.caffeine)
+        }
+        return null
     }
 
     /** Any settings change; a new sleep value shifts the battery (see [setSleepHours]). */

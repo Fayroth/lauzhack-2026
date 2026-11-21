@@ -81,6 +81,25 @@ class PhoneRenderTest {
         }
     }
 
+    @Test fun journalEmpty() {
+        val demo = pc.copy(settings = pc.settings.copy(theme = ThemeMode.DARK))
+        render("phone-journal-empty") {
+            PhoneShell(demo, demo.liveSignals(), PhoneLink.NotPaired, Tab.JOURNAL, {}, TodayActions(), {}) {}
+        }
+    }
+
+    @Test fun journalWithEntries() = journal("phone-journal-entries")
+    @Test fun journalWithEntriesFull() = journal("phone-journal-entries-full", h = 2600)
+
+    /** Paired: the PC's Today, the phone's own journal. Light theme to check both palettes on the phone. */
+    private fun journal(name: String, h: Int = 915) {
+        val (state, signals) = overTheWire(ThemeMode.LIGHT)
+        val shown = ShellRenderTest().withJournal(state, count = 5)
+        render(name, h) {
+            PhoneShell(shown, signals, PhoneLink.Live("192.168.1.20:8767"), Tab.JOURNAL, {}, TodayActions(), {}) {}
+        }
+    }
+
     @Test fun profileNotPaired() {
         val demo = pc.copy(settings = pc.settings.copy(theme = ThemeMode.DARK))
         render("phone-profile-not-paired") {

@@ -59,6 +59,7 @@ import ch.lauzhack.energyguard.ui.Shortcut
 import ch.lauzhack.energyguard.ui.Tab
 import ch.lauzhack.energyguard.ui.components.TextFieldFocus
 import ch.lauzhack.energyguard.ui.shortcutFor
+import ch.lauzhack.energyguard.ui.journal.JournalActions
 import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.brand.energyGuardIcon
 import ch.lauzhack.energyguard.vision.MockVisionSource
@@ -182,7 +183,7 @@ fun main() = application {
     LaunchedEffect(engine) { // sequential collect: an in-flight LLM call (<= 5 s, off the UI thread) is never cancelled
         coach.reset()
         engine.state.collect { s ->
-            coach.onFatigue(s, localTimeHHmm())?.let { println("[coach] ${if (it.fromLlm) "llm" else "template"} ${it.kind}: ${it.text}") }
+            coach.onFatigue(s, localTimeHHmm(), checkIn = store.coachCheckIn())?.let { println("[coach] ${if (it.fromLlm) "llm" else "template"} ${it.kind}: ${it.text}") }
         }
     }
 
@@ -225,6 +226,9 @@ fun main() = application {
                         store.updateSettings { s -> s.copy(theme = if (s.theme == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT) }
                     },
                     footer = companion?.pairingLabel,
+                    journal = remember(store) {
+                        JournalActions(onSave = { k, s, c, n -> store.addJournalEntry(k, s, c, n) }, onDelete = store::deleteJournalEntry)
+                    },
                 ) {
                     // Demo mode calibrates in 15 s: shorter alert escalation too. F5 replay: fresh alert state.
                     key(demoRun) { BreakAlertOverlay(fatigue, coachMessage, demo) }

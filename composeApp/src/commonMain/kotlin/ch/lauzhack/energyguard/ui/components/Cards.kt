@@ -98,16 +98,20 @@ fun LevelChip(level: Level, modifier: Modifier = Modifier, calibrating: Boolean 
 
 /** Primary (accent, filled) or secondary (tonal) button. */
 @Composable
-fun EgButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true) {
+fun EgButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = true, enabled: Boolean = true) {
     val c = Eg.colors
     Button(
         onClick = onClick,
         modifier = modifier,
+        enabled = enabled,
         shape = RoundedCornerShape(12.dp),
         contentPadding = PaddingValues(horizontal = EgSpace.m, vertical = 12.dp),
         elevation = null,
-        colors = if (primary) ButtonDefaults.buttonColors(containerColor = c.accent, contentColor = c.onAccent)
-        else ButtonDefaults.buttonColors(containerColor = c.raised, contentColor = c.text),
+        colors = if (primary) {
+            ButtonDefaults.buttonColors(c.accent, c.onAccent, disabledContainerColor = c.raised, disabledContentColor = c.muted)
+        } else {
+            ButtonDefaults.buttonColors(c.raised, c.text, disabledContainerColor = c.raised, disabledContentColor = c.muted)
+        },
     ) { Text(text, style = EgType.bodyStrong) }
 }
 
