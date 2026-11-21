@@ -124,7 +124,7 @@ internal fun breakTitle(coach: CoachMessage?): String =
 
 /** The EnergyCoach's personalized text when there is one, else "Take a 5-min break." + the top reason as a factor. */
 internal fun breakDetail(f: FatigueState, coach: CoachMessage? = null): String {
-    usableCoach(coach)?.let { return it.text }
+    usableCoach(coach)?.let { return factorize(it.text) }
     val why = f.reasons.firstOrNull { !it.startsWith("eyes closed ") }?.let { readableReason(it) }
     return if (why != null) "Take a 5-min break. ${why.replaceFirstChar { it.uppercase() }}." else "Take a 5-min break."
 }
@@ -192,7 +192,7 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
             Text("Welcome back", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Warm.Honey)
             welcome?.let {
                 Spacer(Modifier.width(16.dp))
-                Text(it.text, fontSize = 20.sp, color = Warm.Muted, maxLines = 1)
+                Text(factorize(it.text), fontSize = 20.sp, color = Warm.Muted, maxLines = 1)
                 Spacer(Modifier.width(16.dp))
                 SourceTag(it.fromLlm)
             }

@@ -141,6 +141,14 @@ internal fun windowLabel(windowMs: Long): String {
  */
 private val signedPercent = Regex(""" ([+-]\d+)%$""")
 
+/** Same idea inside free text (the coach's message): every "+347%" becomes "×4.5 vs usual". */
+private val signedPercentAnywhere = Regex("""([+-])(\d+)\s?%""")
+
+internal fun factorize(text: String): String = signedPercentAnywhere.replace(text) { m ->
+    val pct = m.groupValues[2].toInt() * (if (m.groupValues[1] == "-") -1 else 1)
+    "×${(1 + pct / 100.0).coerceAtLeast(0.0).fmt(1)} vs usual"
+}
+
 internal fun readableReason(reason: String): String {
     val match = signedPercent.find(reason) ?: return reason
     val factor = 1 + match.groupValues[1].toInt() / 100.0

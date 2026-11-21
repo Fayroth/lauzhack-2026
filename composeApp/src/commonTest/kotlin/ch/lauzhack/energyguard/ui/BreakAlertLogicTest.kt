@@ -86,6 +86,13 @@ class BreakAlertLogicTest {
     }
 
     @Test
+    fun coachPercentagesBecomeFactors() {
+        val msg = CoachMessage("Energy 28% at 18:40, eyes closing +347%: take a 5-minute break away from the screen.", false, Intervention.BREAK)
+        assertEquals("Energy 28% at 18:40, eyes closing ×4.5 vs usual: take a 5-minute break away from the screen.", breakDetail(tired, msg))
+        assertEquals("typing ×0.7 vs usual", factorize("typing -30%"))
+    }
+
+    @Test
     fun microSleepIsReadFromTheEngineReason() {
         val f = tired.copy(reasons = listOf("eyes closed 2.3 s", "long blinks +80%"))
         assertEquals("eyes closed 2.3 s", microSleepReason(f))

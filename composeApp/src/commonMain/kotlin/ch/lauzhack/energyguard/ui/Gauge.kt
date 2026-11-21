@@ -46,7 +46,7 @@ fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp, calibrating: Bool
                 fontSize = 92.sp, fontWeight = FontWeight.SemiBold,
                 color = if (calibrating) Warm.Calm else color,
             )
-            Text(label, fontSize = 26.sp, color = Warm.Text)
+            Text(label, fontSize = 26.sp, color = if (calibrating) Warm.Text else color) // "Exhausted" in the gauge color
         }
     }
 }
