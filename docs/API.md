@@ -60,6 +60,11 @@ data class InputStats(
     val meanInterKeyMs: Double,
 )
 ```
+Real implementation (`JNativeHookInputSource`, `EG_INPUT=real`): one `InputStats` every 5 s over the last 30 s.
+- `overshootRatio`: path length / straight distance over the 800 ms before each click (straight ≥ 40 px), averaged; `1.0` when no click.
+- `jitter`: direction reversals per second between consecutive small fast cursor steps (1–80 px, ≤ 100 ms apart), computed over the last 10 s only (so it reacts within 1–2 emissions); `0.0` when the mouse is still. Calm use ≈ 0–0.5; shaking the mouse in place for 5–10 s → several per second.
+- `backspaceRatio`: Backspace/Delete presses / all key presses (a held Backspace counts once, not per auto-repeat); `meanInterKeyMs`: mean gap between key presses, pauses > 2 s excluded. Both `0.0` when nobody typed.
+- Note for the engine: `jitter`, `backspaceRatio` and `meanInterKeyMs` can be `0.0` during calibration (no activity), so a relative baseline needs a floor.
 
 ## Fatigue score (commonMain)
 ```kotlin
@@ -118,5 +123,5 @@ interface HapticOutput { fun pulse(pattern: HapticPattern) }
 ## Sources (desktop)
 ```kotlin
 interface VisionSource { fun frames(): Flow<VisionFrame> }   // MockVisionSource, WebSocketVisionSource
-interface InputSource  { fun stats(): Flow<InputStats> }     // MockInputSource (JNativeHook impl: TODO)
+interface InputSource  { fun stats(): Flow<InputStats> }     // MockInputSource, JNativeHookInputSource (EG_INPUT=real)
 ```

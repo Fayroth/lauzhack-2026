@@ -48,6 +48,11 @@ python vision/main.py                # streams JSON on ws://localhost:8765 (fake
 # 3. Desktop app connected to the sidecar instead of the mock
 EG_VISION=ws ./gradlew :composeApp:run           # PowerShell: $env:EG_VISION="ws"; .\gradlew.bat :composeApp:run
 
+# 4. Real mouse/keyboard stats (JNativeHook global hooks) instead of the mock
+EG_INPUT=real ./gradlew :composeApp:run          # PowerShell: $env:EG_INPUT="real"; .\gradlew.bat :composeApp:run
+# macOS: allow the terminal/IDE in Privacy & Security > Accessibility + Input Monitoring, otherwise no events.
+# Windows: input inside elevated (admin) windows is not captured.
+
 # Android companion (debug APK)
 ./gradlew :composeApp:assembleDebug
 ```
