@@ -13,12 +13,30 @@ so this file is the shared rulebook for all agents. Follow it strictly.
 If the user asks for a new feature after the freeze, remind them of the freeze before doing it.
 
 ## The project
-<!-- FILL IN after choosing (around 11:30) -->
-- **Name:** TBD
-- **One-sentence pitch:** TBD
-- **Sponsor challenge targeted (if any):** TBD
-- **The demo story (what the jury will see, step by step):** TBD
-- **Stack:** TBD
+- **Working name:** EnergyGuard (rename freely)
+- **One-sentence pitch:** Your devices notice when you're getting tired (eyes, mouse, keyboard), help you before you crash, and raise your guard when a tired mistake would cost you (phishing click, wrong payment, wrong email).
+- **Challenges targeted:** Logitech (main: webcam as the eyes & ears of AI, real-time multimodal inputs, productivity), JetBrains (Kotlin Multiplatform, app on >= 2 platforms), AXA (frugal multimodal AI). Main prize.
+- **Hardware we have:** Logitech exclusive webcam prototype (IR, ambisonic mics, NPU, 6DoF IMU) + MX Master 4 (haptic feedback).
+- **Demo story (2 min):**
+  1. Live dashboard: energy gauge at 100%, signals streaming (eyes, mouse, keyboard).
+  2. A teammate "gets tired": long blinks, eyes half closed, shaky/imprecise mouse, more typos → the gauge drops in real time.
+  3. The MX Master 4 vibrates gently + suggestion "5-min break" on screen.
+  4. Guardrail: while the gauge is low, he clicks a phishing link in our demo inbox → blocked with a clear warning + haptic pulse. "Tired humans click on phishing: we raise the guard exactly when you lower yours."
+  5. Frugality counter: "all signals computed locally, 1 LLM call per hour, 0 images leave the PC".
+
+### Scope — be ruthless, we have ~20 h
+- **P0 (must work by Sat 20:00):** webcam eye metrics (EAR, blinks, PERCLOS) + mouse metrics → fatigue score with personal baseline → desktop dashboard with live gauge → haptic alert.
+- **P1:** keyboard metrics (typing rhythm, backspace rate — timings/counts only, NEVER key contents) + guardrail demo inbox + prototype IR stream (works in the dark / with glasses).
+- **P2 (only if P0+P1 are solid):** hourly LLM summary ("your energy today"), second platform (Android "energy weather" companion), ambisonic yawn/sigh detection, Koog shared agent logic.
+- Anything not in this list: say no, or ask the user.
+
+### Stack & architecture
+- **Desktop app first:** Kotlin Multiplatform + Compose Multiplatform (Desktop/JVM target). Second target (Android) added later for the JetBrains "2 platforms" requirement — keep logic in `commonMain` so it is cheap.
+- **`commonMain` (shared, the brain):** data models (`SensorFrame`, `InputStats`), `FatigueEngine` (baseline calibration during the first ~60 s, rolling windows, weighted score 0–100), `Guardrail` rules, LLM client via Ktor (P2).
+- **`desktopMain`:** global mouse/keyboard collectors (JNativeHook), WebSocket client to the vision sidecar, haptic bridge to the MX Master 4, Compose UI (dashboard, gauge, alert overlay, demo inbox).
+- **Vision sidecar (Python, `vision/`):** webcam / prototype IR → MediaPipe Face Mesh → EAR, blink duration/rate, PERCLOS, yawn (mouth ratio), head pose → JSON over WebSocket `ws://localhost:8765` at ~10 Hz. Rationale: MediaPipe and the prototype SDK are easiest from Python; the Kotlin app stays clean. Contract in `docs/API.md`.
+- **Privacy & security by design:** no image or audio is ever stored or sent; only numeric features leave the sidecar. No keystroke content is ever recorded. API keys only in `.env`.
+- Hardware SDK details (prototype IR access, MX Master 4 haptics API) are unknown at start: isolate them behind small interfaces (`HapticOutput`, `FrameSource`) with a mock implementation, so nobody is blocked.
 
 ## Judging rule that matters for how we work
 LauzHack rules allow reusing existing code/resources, but the project must be **novel compared to the
@@ -37,16 +55,16 @@ Therefore:
 Do not over-engineer: no auth systems, no microservices, no exhaustive tests, no premature abstractions,
 unless the demo depends on it. Prefer boring, well-known libraries we can debug fast.
 
-## Team workflow
-- `main` must ALWAYS run and be demoable.
-- Each person owns one area (see `docs/PLAN.md` → Roles) and mostly edits their own folder, to avoid
-  merge conflicts.
-- Small commits, often. Before pushing: `git pull --rebase`, make sure it still runs, then push.
-- Short-lived branches are fine (`ali/scanner`, `mehdi/frontend`), merged within a few hours.
-- Commit messages: short, imperative (`add link reputation check`).
-- Never force-push to `main`. Never rewrite shared history.
-- Contracts between parts (API routes, JSON shapes) live in `docs/API.md`. Update it BEFORE changing
-  an interface, and tell the user to warn the teammate who depends on it.
+## Team workflow (pull requests)
+- NEVER commit or push directly to `main`. `main` must ALWAYS run and be demoable.
+- One branch per task: `<name>/<topic>` (e.g. `ali/scam-detector`, `mehdi/home-screen`). Small PRs, merged within a few hours.
+- Ship with `/ship`: secret check, BUILD_LOG update, rebase on `origin/main`, PR, auto-merge (squash) when CI is green.
+- Run `/sync` often (at least every hour) to rebase on the latest `main` and avoid big conflicts.
+- CI (`.github/workflows/ci.yml`) adapts to the stack (Gradle/KMP, Node, Python) and always runs a secret scan (gitleaks). The required check is `ci-ok`. If CI fails on your PR, fix it before anything else.
+- Each person owns one area (see `docs/PLAN.md` → Roles) and mostly edits their own folder, to avoid merge conflicts.
+- Contracts between parts (API routes, JSON shapes, shared Kotlin interfaces) live in `docs/API.md`. Update it BEFORE changing an interface, and tell the user to warn the teammate who depends on it.
+- Commit messages: short, imperative (`add link reputation check`). Never force-push `main`, never rewrite shared history.
+- Reviews: CODEOWNERS requests the whole team; a quick look is welcome but don't block on it, CI is the gate.
 
 ## Security & secrets (we're a cybersecurity team — no embarrassing leaks)
 - API keys go in `.env` only (git-ignored). Keep `.env.example` updated with the variable NAMES.
@@ -62,6 +80,8 @@ unless the demo depends on it. Prefer boring, well-known libraries we can debug 
 - Keep `README.md` "How to run" accurate whenever setup steps change.
 
 ## Useful custom commands
-- `/checkpoint` — log progress, check for secrets, commit.
+- `/ship` — open a PR for my work, with auto-merge when CI is green.
+- `/sync` — rebase my branch on the latest `main`.
+- `/checkpoint` — log progress, check for secrets, commit (on my branch).
 - `/demo-check` — verify the demo path works from a clean start and list what's broken.
 - `/pitch` — draft the pitch and README from the current state of the project.
