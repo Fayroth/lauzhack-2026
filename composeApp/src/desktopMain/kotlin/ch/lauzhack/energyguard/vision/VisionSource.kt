@@ -1,8 +1,8 @@
 package ch.lauzhack.energyguard.vision
 
 import ch.lauzhack.energyguard.demoTiredness
+import ch.lauzhack.energyguard.demo.mockVisionFrame
 import ch.lauzhack.energyguard.model.VisionFrame
-import ch.lauzhack.energyguard.noise
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
-import kotlin.random.Random
 /** Stream of eye/face metrics (format: docs/API.md). */
 interface VisionSource {
     fun frames(): Flow<VisionFrame>
@@ -29,24 +28,6 @@ class MockVisionSource(private val tiredness: () -> Double = ::demoTiredness) : 
             delay(100)
         }
     }
-}
-
-/** One fake frame for a given tiredness (0 = fresh, 1 = exhausted). Also used by the demo-mode test. */
-internal fun mockVisionFrame(ts: Long, tired: Double, rnd: Random = Random.Default): VisionFrame {
-    val ear = 0.30 - 0.10 * tired + noise(0.01, rnd)
-    return VisionFrame(
-        ts = ts,
-        face = true,
-        ear = ear,
-        eyesClosed = ear < 0.21,
-        blinkCount = (14 + 10 * tired + noise(2.0, rnd)).toInt(),
-        lastBlinkMs = (160 + 300 * tired + noise(20.0, rnd)).toInt(),
-        perclos = 0.05 + 0.30 * tired + noise(0.01, rnd),
-        yawn = tired > 0.8 && rnd.nextDouble() < 0.01,
-        headPitch = -4.0 - 10 * tired + noise(1.0, rnd),
-        headYaw = noise(3.0, rnd),
-        source = "mock",
-    )
 }
 
 /**
