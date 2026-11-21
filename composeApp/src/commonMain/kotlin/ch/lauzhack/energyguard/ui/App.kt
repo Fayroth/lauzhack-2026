@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,7 +50,10 @@ private const val EnergyHistorySize = 300
 fun App(state: DashboardState) {
     // Demo mode calibrates in 15 s instead of 60 s: use that to shorten the alert escalation too.
     val demo = state.calibrationMs < 60_000
-    MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
+    MaterialTheme(
+        colorScheme = if (Warm.light) lightColorScheme(background = Warm.Night, surface = Warm.Surface)
+        else darkColorScheme(background = Warm.Night, surface = Warm.Surface),
+    ) {
         Box(Modifier.fillMaxSize()) {
             DashboardScreen(state)
             key(state.runId) { BreakAlertOverlay(state.fatigue, state.coach, demo) } // F5 replay: fresh alert state
@@ -69,6 +73,8 @@ fun DashboardScreen(state: DashboardState) {
             Text("Looking after your energy, quietly", fontSize = 21.sp, color = Warm.Muted)
             Spacer(Modifier.weight(1f))
             Text("Everything stays on this computer", fontSize = 18.sp, color = Warm.Brand)
+            Spacer(Modifier.width(16.dp))
+            ThemeToggle()
         }
         Spacer(Modifier.height(24.dp))
 
@@ -89,6 +95,7 @@ fun DashboardScreen(state: DashboardState) {
                 SignalTile("Eyes", sourceLabel(state), eyeMetrics(state.vision), Modifier.fillMaxWidth())
                 SignalTile("Mouse", "precision & tremor", mouseMetrics(state.input), Modifier.fillMaxWidth())
                 SignalTile("Keyboard", "rhythm only, never keys", keyboardMetrics(state.input), Modifier.fillMaxWidth())
+                FrugalityStrip(state, Modifier.fillMaxWidth())
             }
         }
     }

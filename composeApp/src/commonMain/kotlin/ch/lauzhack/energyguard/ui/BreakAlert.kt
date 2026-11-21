@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -155,8 +156,9 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
     ) {
         Row(
             Modifier
-                .background(Warm.Surface, RoundedCornerShape(50))
-                .background(accent.copy(alpha = 0.16f), RoundedCornerShape(50))
+                .clip(RoundedCornerShape(50)) // pill-shaped click ripple
+                .background(Warm.Surface)
+                .background(accent.copy(alpha = 0.16f))
                 .clickable { logic.openCard(nowMs()); clicks++ }
                 .padding(horizontal = 24.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,

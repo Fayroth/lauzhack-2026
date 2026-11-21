@@ -25,11 +25,20 @@ import ch.lauzhack.energyguard.model.VisionFrame
 import kotlin.math.round
 
 /** Health of one signal group, shown as a colored dot on its tile. */
-enum class SignalHealth(val color: Color, val label: String) {
-    NONE(Warm.Faint, "Waiting"),
-    GOOD(Warm.Sage, "Normal"),
-    WARN(Warm.Apricot, "Drifting"),
-    BAD(Warm.Rose, "Tired"),
+enum class SignalHealth(val label: String) {
+    NONE("Waiting"),
+    GOOD("Normal"),
+    WARN("Drifting"),
+    BAD("Tired");
+
+    /** Read live (not stored in the enum) so it follows the light/dark toggle. */
+    val color: Color
+        get() = when (this) {
+            NONE -> Warm.Faint
+            GOOD -> Warm.Sage
+            WARN -> Warm.Apricot
+            BAD -> Warm.Rose
+        }
 }
 
 /** One value line on a tile: name, formatted value, and its own health. */
@@ -89,11 +98,11 @@ fun SignalTile(title: String, subtitle: String, metrics: List<Metric>, modifier:
             .background(Warm.Surface, shape)
             // A whisper of the signal's color in the card itself, instead of a hard outline.
             .background(health.color.copy(alpha = if (health == SignalHealth.GOOD || health == SignalHealth.NONE) 0.04f else 0.10f), shape)
-            .padding(horizontal = 24.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+            Text(title, fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
             Spacer(Modifier.width(16.dp))
             Text(subtitle, fontSize = 17.sp, color = Warm.Muted)
             Spacer(Modifier.weight(1f))
@@ -111,11 +120,11 @@ fun SignalTile(title: String, subtitle: String, metrics: List<Metric>, modifier:
         }
         metrics.forEach { m ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(m.name, fontSize = 21.sp, color = Warm.Muted)
+                Text(m.name, fontSize = 20.sp, color = Warm.Muted)
                 Spacer(Modifier.weight(1f))
                 Text(
                     m.value,
-                    fontSize = 25.sp,
+                    fontSize = 23.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (m.health == SignalHealth.GOOD || m.health == SignalHealth.NONE) Warm.Text else m.health.color,
                 )
