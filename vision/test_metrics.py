@@ -50,3 +50,19 @@ def test_turned_head_drops_eye_fields():
     assert "ear" in out
     out = em.update(0.04, mesh_with_ear(0.26, yaw_dz=100.0))  # ~ 35 deg -> dropped
     assert "ear" not in out and abs(out["headYaw"]) > 25
+
+
+def test_oscillating_droop_is_one_closure():
+    # bs_miclos test: eyeBlink oscillates 0.45-0.77 while eyes are half closed -> one closure, not 16 blinks
+    em, t = EyeMetrics(), 0.0
+    for i in range(27 * 6):
+        em.update(t, mesh_with_ear(0.26), blink_score=0.05)
+        t += 1 / 27
+    for i in range(27 * 14):
+        out = em.update(t, mesh_with_ear(0.12), blink_score=0.45 + 0.32 * (i % 2))
+        t += 1 / 27
+    assert out["eyesClosed"] is True and out["blinkCount"] == 0
+    for _ in range(27):
+        out = em.update(t, mesh_with_ear(0.26), blink_score=0.05)
+        t += 1 / 27
+    assert out["eyesClosed"] is False and out["blinkCount"] == 1 and out["lastBlinkMs"] > 13000

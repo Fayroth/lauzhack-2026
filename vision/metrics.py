@@ -18,7 +18,7 @@ LEFT_EYE = (362, 385, 387, 263, 373, 380)
 
 CALIB_S = 5.0          # first seconds WITH a face: EAR baseline (eyes assumed mostly open)
 WINDOW_S = 60.0        # blinkCount and PERCLOS window (docs/API.md)
-CLOSE_ON, CLOSE_OFF = 0.6, 0.4  # hysteresis for eyesClosed / blinks (spike #25: none = false blinks)
+CLOSE_ON, CLOSE_OFF = 0.6, 0.3  # hysteresis (spike #25 + bs_miclos: tighter = fragmented closures)
 PERCLOS_LEVEL = 0.8    # "eyes >= 80 % closed"
 EAR_CLOSED_RATIO = 0.25  # EAR path: closure = 1 when EAR <= 25 % of baseline (spike #25: blinks reach ~12-20 %)
 MIN_BLINK_MS = 50
