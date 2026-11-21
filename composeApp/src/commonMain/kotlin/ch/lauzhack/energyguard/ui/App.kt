@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,7 +49,10 @@ private const val EnergyHistorySize = 300
 @Composable
 fun App(state: DashboardState) {
     MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
-        DashboardScreen(state)
+        Box(Modifier.fillMaxSize()) {
+            DashboardScreen(state)
+            BreakAlertOverlay(state.fatigue, Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp))
+        }
     }
 }
 

@@ -17,6 +17,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 17:30 | Zyad | Real MX Master 4 haptics (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): HID report ported from the WebHID library to Kotlin/hid4java, opens the vendor HID collection over Bluetooth, background thread, falls back to console + beep if the mouse is absent; TIRED = gentle pulse, EXHAUSTED = warning pulse |
 | Sat 17:07 | Ali | Demo mode (`EG_DEMO=1`, #10): scripted fatigue ramp fed through the real pipeline (mock sources → FatigueEngine with 15 s calibration / 10 s window → gauge, reasons, haptics, guardrail), F5 replays it, discreet "DEMO" marker; test checks TIRED ≈ 60 s and EXHAUSTED ≈ 90 s |
 | Sat 17:45 | Mehdi | Dashboard polish (#7): 5-min energy trend, "now" vs "last minute" labels, warm evening theme (honey→rose energy scale, energy-tinted background), all colors in `ui/Theme.kt`, 8 dp spacing grid, animated liquid-battery logo tinted by the user's state (static icon for the window), reasons shown as factors (×2.1 vs usual) |
+| Sat 18:00 | Mehdi | Break alert (#8): card slides up when TIRED/EXHAUSTED with the top reason as a factor, energy-colored accent, Snooze 10 min / Dismiss (dismiss lasts until the next tired episode); pure `BreakAlertLogic` with unit tests |
 
 ## Reused resources
 | Resource | Link | Used for |
