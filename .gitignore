@@ -37,3 +37,12 @@ desktop.ini
 *.mov
 *.zip
 data/raw/
+
+# Gradle / Kotlin / Android
+.gradle/
+.kotlin/
+local.properties
+*.iml
+captures/
+.cxx/
+.externalNativeBuild/

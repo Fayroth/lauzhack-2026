@@ -3,10 +3,10 @@
 ## Roles (adjust if needed)
 | Person | Area | Folder |
 |--------|------|--------|
-| Ali    | KMP project setup, `commonMain` FatigueEngine + Guardrail, CI, integration | `composeApp/src/commonMain` |
-| Mehdi  | Vision sidecar: MediaPipe Face Mesh, EAR/PERCLOS/blinks/yawn, prototype IR | `vision/` |
-| Zyad   | Input collectors (mouse/keyboard via JNativeHook) + MX Master 4 haptics | `composeApp/src/desktopMain/.../input`, `.../haptics` |
-| Isma   | Compose desktop UI (dashboard, gauge, alert overlay, demo inbox), pitch & demo video | `composeApp/src/commonMain/.../ui` |
+| Ali    | KMP project setup, `commonMain` FatigueEngine + Guardrail, CI, integration | `composeApp/src/commonMain/kotlin/ch/lauzhack/energyguard/{engine,guardrail,model}` |
+| Isma   | Vision sidecar: MediaPipe Face Mesh, EAR/PERCLOS/blinks/yawn, prototype IR | `vision/` |
+| Zyad   | Input collectors (mouse/keyboard via JNativeHook) + MX Master 4 haptics | `composeApp/src/desktopMain/kotlin/ch/lauzhack/energyguard/{input,haptics}` |
+| Mehdi  | Compose UI (dashboard, gauge, alert overlay, demo inbox), pitch & demo video | `composeApp/src/commonMain/kotlin/ch/lauzhack/energyguard/ui` |
 
 ## Checkpoints (Zurich time)
 | When | Goal | Done? |

@@ -26,6 +26,7 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
 - `perclos`: fraction of the last 60 s with eyes >= 80 % closed.
 - `source`: `"webcam"` or `"ir"` (prototype).
 - `face=false` → other fields may be absent.
+- Kotlin mirror: `VisionFrame` in `composeApp/src/commonMain/.../model/Models.kt` (unknown fields are ignored).
 
 ## Input stats (desktop, in-process, Kotlin)
 ```kotlin
@@ -53,5 +54,12 @@ data class FatigueState(
 
 ## Haptics (desktop)
 ```kotlin
-interface HapticOutput { fun pulse(pattern: HapticPattern) }   // GENTLE, WARNING
+enum class HapticPattern { GENTLE, WARNING }
+interface HapticOutput { fun pulse(pattern: HapticPattern) }
+```
+
+## Sources (desktop)
+```kotlin
+interface VisionSource { fun frames(): Flow<VisionFrame> }   // MockVisionSource, WebSocketVisionSource
+interface InputSource  { fun stats(): Flow<InputStats> }     // MockInputSource (JNativeHook impl: TODO)
 ```

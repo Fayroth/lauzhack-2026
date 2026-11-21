@@ -33,16 +33,35 @@ _Libraries, APIs, datasets, templates we used (see `docs/BUILD_LOG.md` for the f
 - _AI / data:_
 
 ## How to run
+Requirements: JDK 17+ and the Android SDK (installed with Android Studio; Gradle finds it via
+`ANDROID_HOME` or a `local.properties` file with `sdk.dir=...`, which Android Studio creates for you).
+
 ```bash
-# 1. Copy the env file and fill in your keys
-cp .env.example .env
+# 1. Desktop app (mock vision + mock inputs, no hardware needed)
+./gradlew :composeApp:run            # Windows: .\gradlew.bat :composeApp:run
 
-# 2. Install
-# ...
+# 2. Vision sidecar (Python 3.12 recommended for mediapipe)
+python -m venv .venv && .venv/Scripts/activate   # macOS/Linux: source .venv/bin/activate
+pip install -r vision/requirements.txt
+python vision/main.py                # streams JSON on ws://localhost:8765 (fake frames for now)
 
-# 3. Run
-# ...
+# 3. Desktop app connected to the sidecar instead of the mock
+EG_VISION=ws ./gradlew :composeApp:run           # PowerShell: $env:EG_VISION="ws"; .\gradlew.bat :composeApp:run
+
+# Android companion (debug APK)
+./gradlew :composeApp:assembleDebug
 ```
+
+If a feature needs API keys: `cp .env.example .env` and fill it in (never commit `.env`).
+
+### Code layout
+| Folder | What | Owner |
+|--------|------|-------|
+| `composeApp/src/commonMain/.../model`, `engine`, `guardrail` | Data models (see `docs/API.md`), FatigueEngine, Guardrail | Ali |
+| `composeApp/src/commonMain/.../ui` | Compose dashboard shared by desktop + Android | Mehdi |
+| `composeApp/src/desktopMain/.../input`, `haptics` | Mouse/keyboard collectors (JNativeHook), MX Master 4 haptics | Zyad |
+| `composeApp/src/desktopMain/.../vision` | WebSocket client to the sidecar + mock | Ali / Isma |
+| `vision/` | Python sidecar: webcam/IR → MediaPipe → eye metrics → WebSocket | Isma |
 
 ## What's next
 _What we would build with more time._

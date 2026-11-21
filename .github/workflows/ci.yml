@@ -28,7 +28,7 @@ jobs:
         run: |
           echo "gradle=$([ -f gradlew ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "node=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
-          echo "python=$([ -f requirements.txt ] || [ -f pyproject.toml ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "python=$([ -f requirements.txt ] || [ -f pyproject.toml ] || [ -f vision/requirements.txt ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -53,8 +53,8 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
       - run: chmod +x gradlew
-      # Compile + tests JVM/desktop. Adapter si le module s'appelle autrement.
-      - run: ./gradlew build -x lint --continue
+      # Compile + tests desktop (JVM) + build the Android debug APK. Faster than a full `build`.
+      - run: ./gradlew :composeApp:desktopTest :composeApp:desktopJar :composeApp:assembleDebug --continue
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g
 
@@ -85,6 +85,7 @@ jobs:
       - run: |
           pip install ruff pytest
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # vision/requirements.txt is NOT installed (mediapipe/opencv are heavy); ruff only checks syntax.
           if [ -f pyproject.toml ]; then pip install -e . || true; fi
       - run: ruff check . --select E9,F63,F7,F82
       - run: if ls tests/ >/dev/null 2>&1 || ls test_*.py >/dev/null 2>&1; then pytest -q; else echo "pas de tests"; fi
