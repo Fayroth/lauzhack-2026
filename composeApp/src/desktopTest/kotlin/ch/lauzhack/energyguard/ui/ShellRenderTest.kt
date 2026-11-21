@@ -53,6 +53,9 @@ class ShellRenderTest {
         demo = true,
     )
 
+    /** The TIRED sample, also mirrored to the phone by PhoneRenderTest. */
+    internal fun pcState() = sample(ThemeMode.DARK)
+
     private fun render(name: String, state: AppState, tab: Tab = Tab.TODAY, w: Int = 1440, h: Int = 860) {
         val bytes = ImageComposeScene(w, h, Density(1f)).use { scene ->
             scene.setContent { DesktopShell(state, tab, {}, TodayActions(), {}, footer = "Phone: 192.168.1.20:8767 · code 123456") }

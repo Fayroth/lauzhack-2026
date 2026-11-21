@@ -71,7 +71,7 @@ class CompanionEndpointTest {
         val body = Json.parseToJsonElement(get().body).jsonObject
         assertEquals(
             setOf("score", "level", "reasons", "calibrated", "coach", "ts", "llmCalls", "calibrationMs", "windowMs", "runId", "vision", "input",
-                "energy", "recovery", "stats"), // M1 app-model fields, optional (null from a dashboard-only snapshot)
+                "energy", "recovery", "stats", "signals"), // M1 app-model + M3 signals, optional (null from a dashboard-only snapshot)
             body.keys,
         )
         val s = CompanionJson.decodeFromString(CompanionState.serializer(), get().body)

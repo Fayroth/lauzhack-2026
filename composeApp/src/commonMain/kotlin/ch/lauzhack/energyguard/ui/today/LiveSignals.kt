@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -27,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import ch.lauzhack.energyguard.app.AppState
 import ch.lauzhack.energyguard.engine.BaselineSummary
 import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
@@ -36,12 +38,72 @@ import ch.lauzhack.energyguard.ui.components.EgCard
 import ch.lauzhack.energyguard.ui.components.EgSpace
 import ch.lauzhack.energyguard.ui.components.EgType
 import kotlinx.coroutines.delay
+import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 
 /** One row of the Live signals card: [text] is null when there is no data (grey dot, "-"). */
 data class SignalLine(val text: String?, val flag: String? = null, val flagWarn: Boolean = false) {
     val live get() = text != null
 }
+
+/**
+ * What the Live signals card shows, as numbers (already rounded). Built on the device that has the sensors ([of]);
+ * the PC also sends it to the phone (companion JSON `signals`, docs/API.md), so both draw the same rows.
+ * Null = no data. Never images, audio or key contents: rates, ratios and timings only.
+ */
+@Serializable
+data class SignalsSnapshot(
+    val source: String? = null,       // card subtitle, e.g. "Logitech webcam · IR" (see [sensingSource])
+    val face: Boolean? = null,        // null = no vision frame, false = no face in view
+    val blinksPerMin: Int? = null,
+    val perclosPct: Int? = null,
+    val eyesClosed: Boolean? = null,
+    val jitterX: Double? = null,      // mouse jitter / personal baseline; null while there is no baseline
+    val jitterPerS: Double? = null,   // raw jitter, shown while there is no baseline yet
+    val precisionPct: Int? = null,    // 100 / overshoot ratio
+    val typing: Boolean? = null,      // null = no input stats, false = no key in the window
+    val msPerKey: Int? = null,
+    val backspacePct: Int? = null,
+) {
+    /** Phone side: the network is untrusted, out-of-range values become "no data". */
+    fun clamped() = copy(
+        source = source?.filter { it >= ' ' }?.take(MAX_SOURCE_CHARS),
+        blinksPerMin = blinksPerMin?.takeIf { it in 0..300 },
+        perclosPct = perclosPct?.takeIf { it in 0..100 },
+        jitterX = jitterX?.takeIf { it.isFinite() && it in 0.0..100.0 },
+        jitterPerS = jitterPerS?.takeIf { it.isFinite() && it in 0.0..10_000.0 },
+        precisionPct = precisionPct?.takeIf { it in 0..100 },
+        msPerKey = msPerKey?.takeIf { it in 1..60_000 },
+        backspacePct = backspacePct?.takeIf { it in 0..100 },
+    )
+
+    companion object {
+        private const val MAX_SOURCE_CHARS = 40
+
+        fun of(v: VisionFrame?, i: InputStats?, baseline: BaselineSummary, demo: Boolean): SignalsSnapshot {
+            val base = baseline.mouseJitter?.takeIf { it > 0 && it.isFinite() }
+            val jitter = i?.jitter?.takeIf { it.isFinite() }
+            val eyes = v?.takeIf { it.face }
+            val keys = i?.takeIf { it.keyCount > 0 }
+            return SignalsSnapshot(
+                source = sensingSource(v?.source, demo),
+                face = v?.face,
+                blinksPerMin = eyes?.blinkCount,
+                perclosPct = eyes?.perclos?.takeIf { it.isFinite() }?.let { (it * 100).roundToInt() },
+                eyesClosed = eyes?.eyesClosed,
+                jitterX = if (jitter != null && base != null) oneDecimal(jitter / base) else null,
+                jitterPerS = jitter?.let(::oneDecimal),
+                precisionPct = i?.overshootRatio?.takeIf { it.isFinite() && it >= 1.0 }?.let { (100 / it).roundToInt() },
+                typing = i?.let { it.keyCount > 0 },
+                msPerKey = keys?.meanInterKeyMs?.takeIf { it.isFinite() && it > 0 }?.roundToInt(),
+                backspacePct = keys?.backspaceRatio?.takeIf { it.isFinite() }?.let { (it * 100).roundToInt() },
+            )
+        }
+    }
+}
+
+/** The signals of the device running the store (desktop sensors, or the phone's demo replay). */
+fun AppState.liveSignals() = SignalsSnapshot.of(dashboard.vision, dashboard.input, profile.baseline, demo)
 
 /** Card subtitle: which perception path feeds the eye metrics (VisionFrame.source, docs/API.md). */
 fun sensingSource(source: String?, demo: Boolean): String = when {
@@ -53,28 +115,22 @@ fun sensingSource(source: String?, demo: Boolean): String = when {
 }
 
 /** Eyes: blink rate, PERCLOS and an open / closed flag. Null text if no frame or no face. */
-fun eyesLine(v: VisionFrame?): SignalLine {
-    if (v == null) return SignalLine(null)
-    if (!v.face) return SignalLine(null, flag = "no face")
+fun eyesLine(s: SignalsSnapshot): SignalLine {
+    val face = s.face ?: return SignalLine(null)
+    if (!face) return SignalLine(null, flag = "no face")
     val parts = listOfNotNull(
-        v.blinkCount?.let { "$it blinks/min" },
-        v.perclos?.takeIf { it.isFinite() }?.let { "PERCLOS ${(it * 100).roundToInt()} %" },
+        s.blinksPerMin?.let { "$it blinks/min" },
+        s.perclosPct?.let { "PERCLOS $it %" },
     )
-    val closed = v.eyesClosed == true
+    val closed = s.eyesClosed == true
     return SignalLine(parts.joinToString(" · ").ifEmpty { null }, flag = if (closed) "closed" else "open", flagWarn = closed)
 }
 
 /** Mouse: jitter vs the personal baseline (raw /s while calibrating) and click precision (100 / overshoot). */
-fun mouseLine(i: InputStats?, baseline: BaselineSummary): SignalLine {
-    if (i == null) return SignalLine(null)
-    val base = baseline.mouseJitter?.takeIf { it > 0 && it.isFinite() }
-    val jitter = when {
-        !i.jitter.isFinite() -> null
-        base != null -> "Jitter ${oneDecimal(i.jitter / base)}× usual"
-        else -> "Jitter ${oneDecimal(i.jitter)}/s"
-    }
-    val precision = i.overshootRatio.takeIf { it.isFinite() && it >= 1.0 }?.let { "precision ${(100 / it).roundToInt()} %" }
-    val ratio = base?.let { i.jitter / it }
+fun mouseLine(s: SignalsSnapshot): SignalLine {
+    val jitter = s.jitterX?.let { "Jitter ${oneDecimalText(it)}× usual" } ?: s.jitterPerS?.let { "Jitter ${oneDecimalText(it)}/s" }
+    val precision = s.precisionPct?.let { "precision $it %" }
+    val ratio = s.jitterX
     return SignalLine(
         listOfNotNull(jitter, precision).joinToString(" · ").ifEmpty { null },
         flag = if (ratio != null && ratio >= SHAKY_RATIO) "shaky" else null, flagWarn = true,
@@ -82,18 +138,20 @@ fun mouseLine(i: InputStats?, baseline: BaselineSummary): SignalLine {
 }
 
 /** Keyboard: timings and counts only, never key contents. Null text while not typing. */
-fun keyboardLine(i: InputStats?): SignalLine {
-    if (i == null || i.keyCount <= 0) return SignalLine(null, flag = if (i != null) "not typing" else null)
+fun keyboardLine(s: SignalsSnapshot): SignalLine {
+    if (s.typing != true) return SignalLine(null, flag = if (s.typing == false) "not typing" else null)
     val parts = listOfNotNull(
-        i.meanInterKeyMs.takeIf { it.isFinite() && it > 0 }?.let { "${it.roundToInt()} ms/key" },
-        i.backspaceRatio.takeIf { it.isFinite() }?.let { "backspace ${(it * 100).roundToInt()} %" },
+        s.msPerKey?.let { "$it ms/key" },
+        s.backspacePct?.let { "backspace $it %" },
     )
     return SignalLine(parts.joinToString(" · ").ifEmpty { null })
 }
 
 private const val SHAKY_RATIO = 1.5
 
-private fun oneDecimal(x: Double): String {
+private fun oneDecimal(x: Double): Double = (x * 10).roundToInt() / 10.0
+
+private fun oneDecimalText(x: Double): String {
     val t = (x * 10).roundToInt()
     return "${t / 10}.${t % 10}"
 }
@@ -101,34 +159,43 @@ private fun oneDecimal(x: Double): String {
 /**
  * "The webcam is the eyes of the AI": the raw signals feeding the score, refreshed once per second
  * (vision arrives at ~10 Hz, too fast to read). Numbers only; keyboard = timings, never contents.
+ * [stacked] (phone): each row puts its numbers under the label instead of beside it, so nothing is cut.
  */
 @Composable
-fun LiveSignalsCard(
-    vision: VisionFrame?,
-    input: InputStats?,
-    baseline: BaselineSummary,
-    demo: Boolean,
-    modifier: Modifier = Modifier,
-) {
+fun LiveSignalsCard(signals: SignalsSnapshot, modifier: Modifier = Modifier, stacked: Boolean = false) {
     val c = Eg.colors
-    val v = sampledEverySecond(vision)
-    val i = sampledEverySecond(input)
+    val s = sampledEverySecond(signals)
     EgCard(modifier) {
         CardTitle("Live signals") {
-            Text(sensingSource(vision?.source, demo), style = EgType.label, color = c.muted)
+            Text(s.source ?: "-", style = EgType.label, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.size(4.dp))
         Column {
-            SignalRow("Eyes", eyesLine(v))
-            SignalRow("Mouse", mouseLine(i, baseline))
-            SignalRow("Keyboard", keyboardLine(i))
+            SignalRow("Eyes", eyesLine(s), stacked)
+            SignalRow("Mouse", mouseLine(s), stacked)
+            SignalRow("Keyboard", keyboardLine(s), stacked)
         }
     }
 }
 
 @Composable
-private fun SignalRow(label: String, line: SignalLine) {
+private fun SignalRow(label: String, line: SignalLine, stacked: Boolean) {
     val c = Eg.colors
+    if (stacked) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                LiveDot(line.live)
+                Spacer(Modifier.width(12.dp))
+                Text(label, style = EgType.bodyStrong, color = c.text, modifier = Modifier.weight(1f))
+                line.flag?.let { Text(it, style = EgType.label, color = if (line.flagWarn && line.live) c.tired else c.muted) }
+            }
+            Text(
+                line.text ?: "-", style = EgType.body, color = if (line.live) c.text else c.muted,
+                modifier = Modifier.padding(start = 22.dp),
+            )
+        }
+        return
+    }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         LiveDot(line.live)
         Spacer(Modifier.width(12.dp))
@@ -156,7 +223,7 @@ private fun LiveDot(live: Boolean) {
 
 /** [value] as of the last whole second: the card ticks at 1 Hz whatever the source rate. */
 @Composable
-private fun <T> sampledEverySecond(value: T): T {
+private fun sampledEverySecond(value: SignalsSnapshot): SignalsSnapshot {
     val latest by rememberUpdatedState(value)
     var shown by remember { mutableStateOf(value) }
     LaunchedEffect(Unit) {
@@ -165,6 +232,8 @@ private fun <T> sampledEverySecond(value: T): T {
             delay(1_000)
         }
     }
-    // Data appearing / disappearing shows at once; only changing numbers are throttled.
-    return if ((shown == null) != (value == null)) value else shown
+    // A source appearing / disappearing shows at once; only changing numbers are throttled.
+    return if (shown.presence() != value.presence()) value else shown
 }
+
+private fun SignalsSnapshot.presence() = Triple(face, typing, jitterPerS != null || precisionPct != null)

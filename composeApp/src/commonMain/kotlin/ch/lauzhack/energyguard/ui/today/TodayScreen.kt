@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ch.lauzhack.energyguard.app.AppState
 import ch.lauzhack.energyguard.app.Settings
@@ -84,10 +85,7 @@ fun TodayScreen(state: AppState, actions: TodayActions, modifier: Modifier = Mod
         }
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(EgSpace.s)) {
             CoachCard(state.coach, Modifier.weight(0.55f).fillMaxHeight(), format = ::factorize)
-            LiveSignalsCard(
-                state.dashboard.vision, state.dashboard.input, state.profile.baseline, state.demo,
-                Modifier.weight(0.45f).fillMaxHeight(),
-            )
+            LiveSignalsCard(state.liveSignals(), Modifier.weight(0.45f).fillMaxHeight())
         }
         StatsRow(state)
     }
@@ -153,7 +151,6 @@ private fun EnergyCard(state: AppState, actions: TodayActions, modifier: Modifie
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecoveryCard(state: AppState, actions: TodayActions, modifier: Modifier) {
     val c = Eg.colors
@@ -171,28 +168,38 @@ private fun RecoveryCard(state: AppState, actions: TodayActions, modifier: Modif
         },
     ) {
         Spacer(Modifier.weight(1f))
-        // Last night's sleep: drives the battery start and the recovery score (store.setSleepHours on release).
-        var hours by remember(state.settings.sleepHours) { mutableFloatStateOf(state.settings.sleepHours.toFloat()) }
-        val range = Settings.MIN_SLEEP_HOURS.toFloat()..Settings.MAX_SLEEP_HOURS.toFloat()
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Last night", style = EgType.label, color = c.muted)
-            Spacer(Modifier.width(EgSpace.s))
-            // Own thumb + track: M3's default draws a bar thumb, a gap and a stop dot at the end.
-            Slider(
-                value = hours,
-                onValueChange = { hours = (it * 2).roundToInt() / 2f },
-                onValueChangeFinished = { actions.onSleepHours(hours.toDouble()) },
-                valueRange = range,
-                modifier = Modifier.weight(1f).height(32.dp),
-                thumb = { Box(Modifier.size(20.dp).shadow(2.dp, CircleShape).background(c.accent, CircleShape)) },
-                track = { SleepTrack((hours - range.start) / (range.endInclusive - range.start)) },
-            )
-            Spacer(Modifier.width(EgSpace.s))
-            Text(
-                hoursText(hours.toDouble()), style = EgType.bodyStrong, color = c.text,
-                textAlign = TextAlign.End, modifier = Modifier.width(48.dp),
-            )
-        }
+        SleepHoursSlider(state.settings.sleepHours, actions.onSleepHours)
+    }
+}
+
+/**
+ * "Last night [slider] 6.5 h": drives the battery start and the recovery score ([onDone] on release, by half hours).
+ * [height] = touch height of the slider (32 dp with a mouse, 48 dp on a phone).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SleepHoursSlider(sleepHours: Double, onDone: (Double) -> Unit, height: Dp = 32.dp) {
+    val c = Eg.colors
+    var hours by remember(sleepHours) { mutableFloatStateOf(sleepHours.toFloat()) }
+    val range = Settings.MIN_SLEEP_HOURS.toFloat()..Settings.MAX_SLEEP_HOURS.toFloat()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("Last night", style = EgType.label, color = c.muted)
+        Spacer(Modifier.width(EgSpace.s))
+        // Own thumb + track: M3's default draws a bar thumb, a gap and a stop dot at the end.
+        Slider(
+            value = hours,
+            onValueChange = { hours = (it * 2).roundToInt() / 2f },
+            onValueChangeFinished = { onDone(hours.toDouble()) },
+            valueRange = range,
+            modifier = Modifier.weight(1f).height(height),
+            thumb = { Box(Modifier.size(20.dp).shadow(2.dp, CircleShape).background(c.accent, CircleShape)) },
+            track = { SleepTrack((hours - range.start) / (range.endInclusive - range.start)) },
+        )
+        Spacer(Modifier.width(EgSpace.s))
+        Text(
+            hoursText(hours.toDouble()), style = EgType.bodyStrong, color = c.text,
+            textAlign = TextAlign.End, modifier = Modifier.width(48.dp),
+        )
     }
 }
 
@@ -225,7 +232,7 @@ private fun StatsRow(state: AppState) {
 
 /** Seconds left in calibration, counted from when it is first shown (keyed on the run by the caller). */
 @Composable
-private fun calibrationSecondsLeft(calibrationMs: Long, calibrated: Boolean): Int {
+internal fun calibrationSecondsLeft(calibrationMs: Long, calibrated: Boolean): Int {
     val total = (calibrationMs / 1000).toInt()
     val start = remember { TimeSource.Monotonic.markNow() }
     var left by remember { mutableIntStateOf(total) }
