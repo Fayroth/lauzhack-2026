@@ -11,10 +11,10 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * Deterministic simulator: vision frames at 10 Hz, input stats at 1 Hz, timestamps driven by the test.
+ * Deterministic simulator: vision frames at 10 Hz, input stats every [inputEveryMs] (1 Hz like the mock), timestamps driven by the test.
  * [tired] in 0..1 degrades every signal the way the mock sources do.
  */
-private class Sim(seed: Int = 42) {
+private class Sim(seed: Int = 42, val inputEveryMs: Long = 1_000) {
     val engine = FatigueEngine()
     private val rnd = Random(seed)
     var now = 1_800_000_000_000L
@@ -62,7 +62,7 @@ private class Sim(seed: Int = 42) {
                 ),
                 ts = now,
             )
-            nextInputTs += 1000
+            nextInputTs += inputEveryMs
         }
     }
 
@@ -208,5 +208,14 @@ class FatigueEngineTest {
         sim.ramp(to = 1.0, ms = 3 * 60_000L)
         sim.run(30_000)
         assertTrue(sim.state.level >= Level.TIRED, "input only: ${sim.state}")
+    }
+
+    @Test
+    fun inputOnlyCalibratesIn60sWithRealSourceCadence() {
+        // JNativeHookInputSource emits every 5 s: each emission must credit its full gap.
+        val sim = Sim(inputEveryMs = 5_000).apply { vision = false }
+        sim.run(55_000)
+        assertFalse(sim.state.calibrated, "only ~50 s of input so far")
+        sim.calibrate()
     }
 }
