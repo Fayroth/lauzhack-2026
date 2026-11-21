@@ -1,5 +1,8 @@
 package ch.lauzhack.energyguard
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -7,11 +10,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import ch.lauzhack.energyguard.demo.DemoClock
+import ch.lauzhack.energyguard.demo.DemoScript
 import ch.lauzhack.energyguard.engine.FatigueEngine
 import ch.lauzhack.energyguard.guardrail.GuardedAction
 import ch.lauzhack.energyguard.guardrail.Guardrail
@@ -42,23 +55,29 @@ private const val VISION_STALE_MS = 2_000L
  * One clock: every timestamp fed to the engine is System.currentTimeMillis() (WS frames are stamped on arrival).
  * All collection runs on the Compose main thread, so the (non-thread-safe) engine sees one caller.
  * Haptics: console mock by default, real MX Master 4 vibration with env var EG_HAPTICS=mx.
+ * Demo mode (EG_DEMO=1): scripted fatigue ramp into the same engine (demo/DemoMode.kt), F5 replays it, "DEMO" marker.
  */
 fun main() = application {
-    val engine = remember { FatigueEngine() }
+    val demo = remember { System.getenv("EG_DEMO") == "1" }
+    val demoClock = remember { DemoClock() }
+    var demoRun by remember { mutableStateOf(0) } // F5 in demo mode: fresh engine + haptic cooldown, script from 0
+    val engine = remember(demoRun) { if (demo) DemoScript.newEngine() else FatigueEngine() }
     val vision = remember {
-        if (System.getenv("EG_VISION") == "ws") WebSocketVisionSource() else MockVisionSource()
+        if (demo) MockVisionSource(demoClock::tiredness)
+        else if (System.getenv("EG_VISION") == "ws") WebSocketVisionSource() else MockVisionSource()
     }
     val input = remember {
-        if (System.getenv("EG_INPUT") == "real") JNativeHookInputSource() else MockInputSource()
+        if (demo) MockInputSource(demoClock::tiredness)
+        else if (System.getenv("EG_INPUT") == "real") JNativeHookInputSource() else MockInputSource()
     }
-    val hapticTrigger = remember { HapticTrigger() }
+    val hapticTrigger = remember(demoRun) { HapticTrigger() }
     val haptics = remember {
         if (System.getenv("EG_HAPTICS") == "mx") MxMaster4HapticOutput().also { it.pulse(HapticPattern.GENTLE) } // startup pulse = "mouse connected"
         else MockHapticOutput()
     }
     val guardrail = remember { Guardrail() }
     // UI calls LocalGuard.current(action): checked against the latest fatigue, mouse vibrates on every Block.
-    val guard: (GuardedAction) -> Verdict = remember {
+    val guard: (GuardedAction) -> Verdict = remember(engine) {
         { action ->
             guardrail.check(action, engine.state.value).also { if (it is Verdict.Block) haptics.pulse(HapticPattern.WARNING) }
         }
@@ -68,7 +87,7 @@ fun main() = application {
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
     val fatigue by engine.state.collectAsState()
 
-    LaunchedEffect(vision) {
+    LaunchedEffect(vision, engine) {
         vision.frames()
             .catch { System.err.println("[vision] source stopped: ${it.message}") } // never crash the app
             .collect { lastVision = it; engine.onVision(it) }
@@ -79,7 +98,7 @@ fun main() = application {
             lastVision?.let { if (System.currentTimeMillis() - it.ts > VISION_STALE_MS) lastVision = null }
         }
     }
-    LaunchedEffect(input) {
+    LaunchedEffect(input, engine) {
         input.stats()
             .catch { System.err.println("[input] source stopped: ${it.message}") }
             .collect { lastInput = it; engine.onInput(it, System.currentTimeMillis()) }
@@ -90,12 +109,20 @@ fun main() = application {
 
     Window(
         onCloseRequest = ::exitApplication,
-        title = "EnergyGuard",
+        title = if (demo) "EnergyGuard (demo mode)" else "EnergyGuard",
         icon = rememberVectorPainter(remember { energyGuardIcon() }),
         state = rememberWindowState(width = 1280.dp, height = 800.dp),
+        onKeyEvent = {
+            if (demo && it.type == KeyEventType.KeyDown && it.key == Key.F5) {
+                demoClock.restart(); demoRun++; true
+            } else false
+        },
     ) {
         CompositionLocalProvider(LocalGuard provides guard) {
-            App(DashboardState(fatigue, lastVision, lastInput))
+            Box {
+                App(DashboardState(fatigue, lastVision, lastInput))
+                if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
+            }
         }
     }
 }
