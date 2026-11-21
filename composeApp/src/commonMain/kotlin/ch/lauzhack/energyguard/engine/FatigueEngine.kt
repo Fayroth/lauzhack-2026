@@ -135,6 +135,20 @@ class FatigueEngine(
         recompute()
     }
 
+    /** Read-only view of the personal baseline (Profile tab). A value is null until that signal's baseline is frozen. */
+    fun baselineSummary(): BaselineSummary {
+        fun mean(sig: Sig) = tracks.getValue(sig).takeIf { it.frozen }?.mean
+        return BaselineSummary(
+            calibrated = calibrated,
+            blinkRatePerMin = mean(Sig.BLINK_RATE),
+            blinkMs = mean(Sig.BLINK_MS),
+            perclos = mean(Sig.PERCLOS),
+            mouseJitter = mean(Sig.JITTER),
+            interKeyMs = mean(Sig.INTER_KEY),
+            backspaceRatio = mean(Sig.BACKSPACE),
+        )
+    }
+
     private fun add(sig: Sig, ts: Long, v: Double) {
         if (v.isFinite()) tracks.getValue(sig).add(ts, v) // untrusted sidecar data: drop NaN/Infinity
     }

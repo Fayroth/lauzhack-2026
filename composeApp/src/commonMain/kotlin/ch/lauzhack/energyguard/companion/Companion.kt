@@ -1,5 +1,7 @@
 package ch.lauzhack.energyguard.companion
 
+import ch.lauzhack.energyguard.app.AppState
+import ch.lauzhack.energyguard.app.BreakSource
 import ch.lauzhack.energyguard.coach.CoachMessage
 import ch.lauzhack.energyguard.coach.Intervention
 import ch.lauzhack.energyguard.model.FatigueState
@@ -39,10 +41,61 @@ data class CompanionState(
     val runId: Int = 0,
     val vision: VisionFrame? = null,
     val input: InputStats? = null,
+    // --- Optional, app model (M1): absent from older PCs, ignored by older phones (ignoreUnknownKeys) ---
+    val energy: CompanionEnergy? = null,
+    val recovery: Int? = null,
+    val stats: CompanionStats? = null,
 )
 
 @Serializable
 data class CompanionCoach(val text: String, val kind: Intervention, val fromLlm: Boolean)
+
+/** EnergyBattery for the phone. [breakSource] = "USER" | "AUTO" | null. */
+@Serializable
+data class CompanionEnergy(val battery: Int, val onBreak: Boolean = false, val breakSource: BreakSource? = null)
+
+/** Today's DayStats, numbers only. Never journal entries or notes. */
+@Serializable
+data class CompanionStats(
+    val focusedMs: Long = 0,
+    val breaksTaken: Int = 0,
+    val breaksNeeded: Int = 0,
+    val longestFocusMs: Long = 0,
+    val phishingBlocked: Int = 0,
+    val llmCalls: Int = 0,
+    val framesProcessed: Long = 0,
+    val imagesSent: Int = 0,
+    val audioSent: Int = 0,
+    val keysSent: Int = 0,
+)
+
+/** PC side: the app-model fields (battery, recovery, today's stats) on top of the dashboard snapshot. */
+fun CompanionState.withApp(app: AppState) = copy(
+    energy = CompanionEnergy(app.energy.battery, app.energy.onBreak, app.energy.breakSource),
+    recovery = app.recovery,
+    stats = with(app.stats) {
+        CompanionStats(focusedMs, breaksTaken, breaksNeeded, longestFocusMs, phishingBlocked, llmCalls, framesProcessed,
+            imagesSent, audioSent, keysSent)
+    },
+)
+
+/** PC side: full snapshot from the app store. */
+fun AppState.toCompanionState(ts: Long) = dashboard.toCompanionState(ts).withApp(this)
+
+/** Phone side: clamp the optional app-model fields (untrusted network), keep them null when the PC is older. */
+fun CompanionState.clampAppFields() = copy(
+    energy = energy?.let { it.copy(battery = it.battery.coerceIn(0, 100)) },
+    recovery = recovery?.coerceIn(0, 100),
+    stats = stats?.let {
+        it.copy(
+            focusedMs = it.focusedMs.coerceAtLeast(0), breaksTaken = it.breaksTaken.coerceAtLeast(0),
+            breaksNeeded = it.breaksNeeded.coerceAtLeast(0), longestFocusMs = it.longestFocusMs.coerceAtLeast(0),
+            phishingBlocked = it.phishingBlocked.coerceAtLeast(0), llmCalls = it.llmCalls.coerceAtLeast(0),
+            framesProcessed = it.framesProcessed.coerceAtLeast(0), imagesSent = it.imagesSent.coerceAtLeast(0),
+            audioSent = it.audioSent.coerceAtLeast(0), keysSent = it.keysSent.coerceAtLeast(0),
+        )
+    },
+)
 
 /** PC side: snapshot of what the dashboard shows right now. */
 fun DashboardState.toCompanionState(ts: Long) = CompanionState(
@@ -132,7 +185,7 @@ class CompanionClient(engine: HttpClientEngineFactory<*>, private val timeoutMs:
             200 -> {
                 val text = resp.bodyAsText()
                 if (text.length > MAX_BODY_CHARS) CompanionResult.Unreachable("response too large")
-                else CompanionResult.Ok(CompanionJson.decodeFromString(CompanionState.serializer(), text))
+                else CompanionResult.Ok(CompanionJson.decodeFromString(CompanionState.serializer(), text).clampAppFields())
             }
             401 -> CompanionResult.WrongCode
             429 -> CompanionResult.TooManyTries
