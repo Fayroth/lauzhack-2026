@@ -10,6 +10,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 14:30 | Ali | KMP skeleton: models, placeholder FatigueEngine (baseline + weighted score), Guardrail stub, dashboard with energy gauge, mock vision/input/haptics, Ktor WebSocket client, fake vision sidecar |
 | Sat 15:20 | Ali | FatigueEngine v1: personal 60 s baseline (face-time only), rolling 60 s windows, clipped z-scores, weighted fusion renormalized over available signals (eyes, mouse, keyboard, gaze, hands), EMA, hysteresis levels, micro-sleep → instant TIRED, plain-words reasons; 8 deterministic commonTest scenarios |
 | Sat 15:45 | Zyad | Real mouse/keyboard collector (`JNativeHookInputSource` + pure `InputStatsCalculator`): overshoot ratio before clicks, shake jitter (direction reversals/s), typing rhythm and backspace ratio over a 30 s window — timestamps only, never key contents. Unit tests in `desktopTest` |
+| Sat 16:15 | Mehdi | Projector-ready dashboard (#7): big gauge with calibration countdown + level hint + top reasons, Eyes/Mouse/Keyboard tiles with per-signal health colors |
 
 ## Reused resources
 | Resource | Link | Used for |

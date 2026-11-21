@@ -19,11 +19,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Energy gauge: 270 degree arc, green to red. [energy] in 0..100. */
+/** Energy gauge: 270 degree arc, green to red. [energy] in 0..100. Grey while [calibrating]. */
 @Composable
-fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp) {
+fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp, calibrating: Boolean = false) {
     val animated by animateFloatAsState(energy / 100f, tween(600), label = "energy")
-    val color = energyColor(energy)
+    val color = if (calibrating) Color(0xFF616161) else energyColor(energy)
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.size(size)) {
             val stroke = Stroke(width = 36.dp.toPx(), cap = StrokeCap.Round)
@@ -31,7 +31,7 @@ fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp) {
             drawArc(color, startAngle = 135f, sweepAngle = 270f * animated, useCenter = false, style = stroke)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$energy%", fontSize = 96.sp, fontWeight = FontWeight.Bold, color = color)
+            Text(if (calibrating) "..." else "$energy%", fontSize = 96.sp, fontWeight = FontWeight.Bold, color = color)
             Text(label, fontSize = 28.sp, color = Color.White)
         }
     }
