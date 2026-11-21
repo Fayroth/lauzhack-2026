@@ -201,6 +201,28 @@ class FatigueEngineTest {
     }
 
     @Test
+    fun sidecarDiesWithEyesClosedNoFakeMicroSleep() {
+        val sim = Sim()
+        sim.calibrate()
+        sim.run(30_000)
+        sim.eyesClosed = true
+        sim.run(500)
+        sim.vision = false // sidecar killed mid-blink: only input keeps arriving
+        sim.run(2 * 60_000L) { s ->
+            assertEquals(Level.FRESH, s.level, "stale eyes-closed must not become a micro-sleep: ${s.reasons}")
+        }
+        // Input-only after a vision calibration still detects fatigue.
+        sim.ramp(to = 1.0, ms = 3 * 60_000L)
+        sim.run(30_000)
+        assertTrue(sim.state.level >= Level.TIRED, "input only after sidecar loss: ${sim.state}")
+        // Sidecar comes back: frames are accepted again, no crash, still calibrated.
+        sim.eyesClosed = false
+        sim.vision = true
+        sim.run(10_000)
+        assertTrue(sim.state.calibrated)
+    }
+
+    @Test
     fun inputOnlyStillWorks() {
         val sim = Sim().apply { vision = false }
         sim.calibrate() // no sidecar at all: calibrates on input time instead

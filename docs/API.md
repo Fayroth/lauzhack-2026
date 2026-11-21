@@ -29,6 +29,11 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
   "headOnHand": false
 }
 ```
+- **Clock (one time base):** `ts` is the sidecar's `time.time()` in epoch ms, informational only. The Kotlin client
+  (`WebSocketVisionSource`) **re-stamps every frame on arrival** with `System.currentTimeMillis()`, the same clock used for
+  `onInput`, so the engine never mixes two clocks (Python vs JVM, or a frame buffered during a hiccup). Latency on localhost ≈ ms.
+- **Sidecar down/restart:** the client retries every 2 s (WebSocket ping every 2 s detects a hung sidecar), never throws;
+  meanwhile the engine runs on input only and the UI vision panel shows "-" after 2 s without frames.
 - `ear`: eye aspect ratio (avg of both eyes), `eyesClosed`: ear below calibrated threshold.
 - `blinkCount`: blinks in the last 60 s, `lastBlinkMs`: duration of the last blink.
 - `perclos`: fraction of the last 60 s with eyes >= 80 % closed.
@@ -119,6 +124,8 @@ Rules:
 enum class HapticPattern { GENTLE, WARNING }
 interface HapticOutput { fun pulse(pattern: HapticPattern) }
 ```
+When (`HapticTrigger`, desktopMain): GENTLE on entering TIRED, WARNING on entering EXHAUSTED, only on the way up,
+at most once per 2 min (except an escalation GENTLE → WARNING, never swallowed).
 
 ## Sources (desktop)
 ```kotlin
