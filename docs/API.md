@@ -126,6 +126,7 @@ interface HapticOutput { fun pulse(pattern: HapticPattern) }
 ```
 When (`HapticTrigger`, desktopMain): GENTLE on entering TIRED, WARNING on entering EXHAUSTED, only on the way up,
 at most once per 2 min (except an escalation GENTLE → WARNING, never swallowed).
+Real implementation (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): sends HID report `0x11` + `[0x02, 0x0B, 0x4E, effectId, 0…]` (19 bytes) to the vendor HID collection of the MX Master 4 (046D:B042 / B048), bytes from the WebHID library. `GENTLE` / `WARNING` effect numbers can be overridden with `EG_HAPTIC_GENTLE` / `EG_HAPTIC_WARNING` (0–14). If the mouse is absent: console line + system beep. One gentle pulse at startup confirms the mouse is connected.
 
 ## Sources (desktop)
 ```kotlin

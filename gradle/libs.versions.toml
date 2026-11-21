@@ -6,6 +6,7 @@ android-targetSdk = "36"
 androidx-activity = "1.11.0"
 composeMultiplatform = "1.9.0"
 jnativehook = "2.2.2"
+hid4java = "0.8.0"
 kotlin = "2.2.20"
 kotlinx-coroutines = "1.10.2"
 kotlinx-serialization = "1.9.0"
@@ -21,6 +22,7 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-websockets = { module = "io.ktor:ktor-client-websockets", version.ref = "ktor" }
 jnativehook = { module = "com.github.kwhat:jnativehook", version.ref = "jnativehook" }
+hid4java = { module = "org.hid4java:hid4java", version.ref = "hid4java" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

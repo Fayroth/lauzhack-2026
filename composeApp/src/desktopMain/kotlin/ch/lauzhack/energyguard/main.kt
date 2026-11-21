@@ -11,7 +11,9 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.energyguard.engine.FatigueEngine
+import ch.lauzhack.energyguard.haptics.HapticPattern
 import ch.lauzhack.energyguard.haptics.MockHapticOutput
+import ch.lauzhack.energyguard.haptics.MxMaster4HapticOutput
 import ch.lauzhack.energyguard.input.JNativeHookInputSource
 import ch.lauzhack.energyguard.input.MockInputSource
 import ch.lauzhack.energyguard.model.InputStats
@@ -32,6 +34,7 @@ private const val VISION_STALE_MS = 2_000L
  * Input source: mock by default, real JNativeHook mouse/keyboard hooks with env var EG_INPUT=real.
  * One clock: every timestamp fed to the engine is System.currentTimeMillis() (WS frames are stamped on arrival).
  * All collection runs on the Compose main thread, so the (non-thread-safe) engine sees one caller.
+ * Haptics: console mock by default, real MX Master 4 vibration with env var EG_HAPTICS=mx.
  */
 fun main() = application {
     val engine = remember { FatigueEngine() }
@@ -41,8 +44,11 @@ fun main() = application {
     val input = remember {
         if (System.getenv("EG_INPUT") == "real") JNativeHookInputSource() else MockInputSource()
     }
-    val haptics = remember { MockHapticOutput() }
     val hapticTrigger = remember { HapticTrigger() }
+    val haptics = remember {
+        if (System.getenv("EG_HAPTICS") == "mx") MxMaster4HapticOutput().also { it.pulse(HapticPattern.GENTLE) } // startup pulse = "mouse connected"
+        else MockHapticOutput()
+    }
 
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }

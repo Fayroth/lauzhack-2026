@@ -12,6 +12,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 15:45 | Zyad | Real mouse/keyboard collector (`JNativeHookInputSource` + pure `InputStatsCalculator`): overshoot ratio before clicks, shake jitter (direction reversals/s), typing rhythm and backspace ratio over a 30 s window — timestamps only, never key contents. Unit tests in `desktopTest` |
 | Sat 16:00 | Ali | Pipeline wired end to end: vision (mock / sidecar) + input → FatigueEngine → UI + haptics. One clock (WS frames stamped on arrival), auto-reconnect that survives sidecar down/restart, no fake micro-sleep when the sidecar dies mid-blink, haptic trigger (upward transitions, 2-min cooldown); tests |
 | Sat 16:30 | Zyad | Fix input-only calibration with the real 5 s input cadence (was 150 s instead of 60 s) + regression test |
+| Sat 17:30 | Zyad | Real MX Master 4 haptics (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): HID report ported from the WebHID library to Kotlin/hid4java, opens the vendor HID collection over Bluetooth, background thread, falls back to console + beep if the mouse is absent; TIRED = gentle pulse, EXHAUSTED = warning pulse |
 
 ## Reused resources
 | Resource | Link | Used for |
@@ -22,6 +23,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | kotlinx.serialization | https://github.com/Kotlin/kotlinx.serialization | Parse sidecar JSON |
 | Ktor client (CIO + WebSockets) | https://ktor.io | WebSocket client to the vision sidecar |
 | JNativeHook | https://github.com/kwhat/jnativehook | Global mouse/keyboard hooks (timings/counts only) |
+| hid4java (MIT) | https://github.com/gary-rowe/hid4java | JVM access to HID devices, used to send the haptic report to the MX Master 4 |
 | MediaPipe Face Mesh | https://github.com/google-ai-edge/mediapipe | Face landmarks for EAR/PERCLOS/blinks |
 | OpenCV (opencv-python) | https://opencv.org | Webcam capture |
 | websockets (Python) | https://github.com/python-websockets/websockets | Sidecar WebSocket server |
@@ -29,5 +31,5 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Logi Gaze Tracker | https://logitech.github.io/hackathons/logi-gaze-tracker/setup/ | Gaze on/off screen |
 | Logi Hands Tracker | https://logitech.github.io/hackathons/logi-hands-tracker/ | Eye rubbing, head on hand |
 | Logi Actions SDK (haptics) | https://logitech.github.io/actions-sdk-docs/ | MX Master 4 haptic feedback |
-| MX Master 4 WebHID haptics library | https://github.com/mario-gutierrez/mx-master-4-webhid | MX Master 4 haptics (alternative path) |
+| MX Master 4 WebHID haptics library (MIT) | https://github.com/mario-gutierrez/mx-master-4-webhid | Source of the haptic HID report bytes (0x11, 0x0B4E, effect id), ported to Kotlin in `MxMaster4HapticOutput` |
 | OpenRouter | https://openrouter.ai | LLM API for the EnergyCoach |
