@@ -51,7 +51,7 @@ fun App(state: DashboardState, demo: Boolean = false) {
     MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
         Box(Modifier.fillMaxSize()) {
             DashboardScreen(state)
-            BreakAlertOverlay(state.fatigue, demo)
+            BreakAlertOverlay(state.fatigue, state.coach, demo)
         }
     }
 }

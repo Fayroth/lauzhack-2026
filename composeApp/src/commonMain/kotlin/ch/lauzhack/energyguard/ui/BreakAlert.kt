@@ -46,6 +46,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.lauzhack.energyguard.coach.CoachMessage
+import ch.lauzhack.energyguard.coach.Intervention
 import ch.lauzhack.energyguard.model.FatigueState
 import ch.lauzhack.energyguard.model.Level
 import kotlinx.coroutines.delay
@@ -112,11 +114,18 @@ class BreakAlertLogic(
 /** The engine reports a micro-sleep as the reason "eyes closed 2.3 s" (see FatigueEngine.describe). */
 internal fun microSleepReason(f: FatigueState): String? = f.reasons.firstOrNull { it.startsWith("eyes closed ") }
 
-/** Default wording; the EnergyCoach message (#21) can replace these later. */
-internal fun breakTitle(level: Level): String =
-    if (level == Level.EXHAUSTED) "Time to stop for a while" else "Time for a 5-minute break"
+/** The coach's message, if it is a recommendation (a "recovered" message is not shown on the break card). */
+internal fun usableCoach(coach: CoachMessage?): CoachMessage? = coach?.takeIf { it.kind != Intervention.RECOVERED }
 
-internal fun breakDetail(f: FatigueState): String {
+internal fun breakTitle(level: Level, coach: CoachMessage? = null): String = when {
+    usableCoach(coach)?.kind == Intervention.STAND_UP -> "Time to stand up and move"
+    level == Level.EXHAUSTED -> "Time to stop for a while"
+    else -> "Time for a 5-minute break"
+}
+
+/** The EnergyCoach's personalized text (#21) when there is one, else a template built from the top reason. */
+internal fun breakDetail(f: FatigueState, coach: CoachMessage? = null): String {
+    usableCoach(coach)?.let { return it.text }
     val why = f.reasons.firstOrNull()?.let { readableReason(it) }
     val advice = if (f.level == Level.EXHAUSTED) "Step away from the screen, drink some water." else "Look away, stretch, breathe."
     return if (why != null) "${why.replaceFirstChar { it.uppercase() }}. $advice" else advice
@@ -124,7 +133,7 @@ internal fun breakDetail(f: FatigueState): String {
 
 /** All three stages, drawn over the dashboard. Call it inside the root Box. */
 @Composable
-fun BoxScope.BreakAlertOverlay(f: FatigueState, demo: Boolean) {
+fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Boolean) {
     val logic = remember(demo) { if (demo) BreakAlertLogic.forDemo() else BreakAlertLogic() }
     val clock = remember { TimeSource.Monotonic.markNow() }
     var now by remember { mutableLongStateOf(0L) }
@@ -180,8 +189,8 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, demo: Boolean) {
             CoffeeCup(accent, 56.dp)
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(breakTitle(f.level), fontSize = 32.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
-                Text(breakDetail(f), fontSize = 22.sp, color = Warm.Muted)
+                Text(breakTitle(f.level, coach), fontSize = 32.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+                Text(breakDetail(f, coach), fontSize = 22.sp, color = Warm.Muted)
             }
             Spacer(Modifier.width(24.dp))
             OutlinedButton(onClick = { logic.snooze(nowMs()); clicks++ }) {
