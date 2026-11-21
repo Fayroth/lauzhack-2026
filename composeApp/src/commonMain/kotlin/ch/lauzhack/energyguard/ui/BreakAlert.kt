@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,12 +55,11 @@ import kotlinx.coroutines.delay
 import kotlin.time.TimeSource
 
 /**
- * Escalating break alert (#8), like a car's drowsiness assistant: it starts quietly and insists if ignored.
- *  - HINT: small "Break soon?" pill as soon as the user is TIRED.
- *  - CARD: the break card, once TIRED has been ignored for [cardAfterMs], or right away when EXHAUSTED.
+ * Break alert (#8), escalating like a car's drowsiness assistant:
+ *  - CARD: the break card, as soon as the user is TIRED or EXHAUSTED (demo step 3).
+ *  - HINT: after a "Snooze", a small "Break soon?" pill comes back first, then the card after [cardAfterMs].
  *  - FULL: full-screen "Stop", once EXHAUSTED has been ignored for [fullAfterMs], or at once on a micro-sleep.
- * "Dismiss" ends the episode (until the user recovers to FRESH/OK and gets tired again);
- * "Snooze" hides everything for [snoozeMs], then the escalation starts again from HINT.
+ * "Dismiss" ends the episode (until the user recovers to FRESH/OK and gets tired again).
  * A micro-sleep always goes FULL (safety), except for [awakeGraceMs] after "I'm awake".
  * Pure and clock-free (time is passed in), so it is unit-tested.
  */
@@ -84,7 +84,8 @@ class BreakAlertLogic(
             return AlertStage.NONE
         }
         if (dismissed || nowMs < snoozedUntil) return AlertStage.NONE
-        val tired = tiredSince ?: nowMs.also { tiredSince = it }
+        // First time tired in this episode: straight to the card (the HINT step only follows a snooze).
+        val tired = tiredSince ?: (nowMs - cardAfterMs).also { tiredSince = it }
         if (level == Level.EXHAUSTED) {
             val exhausted = exhaustedSince ?: nowMs.also { exhaustedSince = it }
             return if (nowMs - exhausted >= fullAfterMs) AlertStage.FULL else AlertStage.CARD
@@ -117,18 +118,15 @@ internal fun microSleepReason(f: FatigueState): String? = f.reasons.firstOrNull 
 /** The coach's message, if it is a recommendation (a "recovered" message is not shown on the break card). */
 internal fun usableCoach(coach: CoachMessage?): CoachMessage? = coach?.takeIf { it.kind != Intervention.RECOVERED }
 
-internal fun breakTitle(level: Level, coach: CoachMessage? = null): String = when {
-    usableCoach(coach)?.kind == Intervention.STAND_UP -> "Time to stand up and move"
-    level == Level.EXHAUSTED -> "Time to stop for a while"
-    else -> "Time for a 5-minute break"
-}
+/** Title by the coach's intervention kind (issue #8); no coach message yet = a break. */
+internal fun breakTitle(coach: CoachMessage?): String =
+    if (usableCoach(coach)?.kind == Intervention.STAND_UP) "Stand up and walk a bit" else "Eyes off the screen, 5 min"
 
-/** The EnergyCoach's personalized text (#21) when there is one, else a template built from the top reason. */
+/** The EnergyCoach's personalized text when there is one, else "Take a 5-min break." + the top reason as a factor. */
 internal fun breakDetail(f: FatigueState, coach: CoachMessage? = null): String {
     usableCoach(coach)?.let { return it.text }
-    val why = f.reasons.firstOrNull()?.let { readableReason(it) }
-    val advice = if (f.level == Level.EXHAUSTED) "Step away from the screen, drink some water." else "Look away, stretch, breathe."
-    return if (why != null) "${why.replaceFirstChar { it.uppercase() }}. $advice" else advice
+    val why = f.reasons.firstOrNull { !it.startsWith("eyes closed ") }?.let { readableReason(it) }
+    return if (why != null) "Take a 5-min break. ${why.replaceFirstChar { it.uppercase() }}." else "Take a 5-min break."
 }
 
 /** All three stages, drawn over the dashboard. Call it inside the root Box. */
@@ -169,6 +167,38 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
         }
     }
 
+    // Recovered: a short "Welcome back" toast at the top for a few seconds, never the big card.
+    var welcome by remember { mutableStateOf<CoachMessage?>(null) }
+    LaunchedEffect(coach) {
+        if (coach?.kind == Intervention.RECOVERED) {
+            welcome = coach
+            delay(WELCOME_TOAST_MS)
+            welcome = null
+        }
+    }
+    AnimatedVisibility(
+        welcome != null && stage == AlertStage.NONE,
+        Modifier.align(Alignment.TopCenter).padding(top = 28.dp),
+        enter = slideInVertically { -it } + fadeIn(), exit = slideOutVertically { -it } + fadeOut(),
+    ) {
+        Row(
+            Modifier
+                .widthIn(max = 900.dp)
+                .background(Warm.Surface, RoundedCornerShape(50))
+                .background(Warm.Honey.copy(alpha = 0.14f), RoundedCornerShape(50))
+                .padding(horizontal = 28.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Welcome back", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Warm.Honey)
+            welcome?.let {
+                Spacer(Modifier.width(16.dp))
+                Text(it.text, fontSize = 20.sp, color = Warm.Muted, maxLines = 1)
+                Spacer(Modifier.width(16.dp))
+                SourceTag(it.fromLlm)
+            }
+        }
+    }
+
     // 2. CARD: slides up from the bottom.
     AnimatedVisibility(
         stage == AlertStage.CARD,
@@ -189,8 +219,14 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
             CoffeeCup(accent, 56.dp)
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(breakTitle(f.level, coach), fontSize = 32.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
-                Text(breakDetail(f, coach), fontSize = 22.sp, color = Warm.Muted)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(breakTitle(coach), fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+                    usableCoach(coach)?.let {
+                        Spacer(Modifier.width(16.dp))
+                        SourceTag(it.fromLlm)
+                    }
+                }
+                Text(breakDetail(f, coach), fontSize = 24.sp, color = Warm.Muted)
             }
             Spacer(Modifier.width(24.dp))
             OutlinedButton(onClick = { logic.snooze(nowMs()); clicks++ }) {
@@ -233,6 +269,19 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
             }
         }
     }
+}
+
+private const val WELCOME_TOAST_MS = 5_000L
+
+/** Subtle "AI" / "offline" tag: part of the frugality story (was this text generated, or a local template?). */
+@Composable
+private fun SourceTag(fromLlm: Boolean) {
+    Text(
+        if (fromLlm) "AI" else "offline",
+        fontSize = 15.sp,
+        color = Warm.Muted,
+        modifier = Modifier.background(Warm.Track, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp),
+    )
 }
 
 /** Simple coffee-cup line icon (the universal "take a break" sign in cars). */
