@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,7 +75,8 @@ fun ThemeToggle(modifier: Modifier = Modifier) {
         fontSize = 16.sp,
         color = Warm.Muted,
         modifier = modifier
-            .background(Warm.Surface, RoundedCornerShape(50))
+            .clip(RoundedCornerShape(50)) // the click ripple takes the pill shape, not a rectangle
+            .background(Warm.Surface)
             .clickable { Warm.light = !Warm.light }
             .padding(horizontal = 14.dp, vertical = 6.dp),
     )
