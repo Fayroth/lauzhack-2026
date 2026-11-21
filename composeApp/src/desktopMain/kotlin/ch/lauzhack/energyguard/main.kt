@@ -13,6 +13,7 @@ import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.energyguard.engine.FatigueEngine
 import ch.lauzhack.energyguard.haptics.HapticPattern
 import ch.lauzhack.energyguard.haptics.MockHapticOutput
+import ch.lauzhack.energyguard.input.JNativeHookInputSource
 import ch.lauzhack.energyguard.input.MockInputSource
 import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.Level
@@ -25,13 +26,16 @@ import ch.lauzhack.energyguard.vision.WebSocketVisionSource
 /**
  * Desktop entry point: wires sources -> FatigueEngine -> UI + haptics.
  * Vision source: mock by default, real sidecar with env var EG_VISION=ws.
+ * Input source: mock by default, real JNativeHook mouse/keyboard hooks with env var EG_INPUT=real.
  */
 fun main() = application {
     val engine = remember { FatigueEngine() }
     val vision = remember {
         if (System.getenv("EG_VISION") == "ws") WebSocketVisionSource() else MockVisionSource()
     }
-    val input = remember { MockInputSource() }
+    val input = remember {
+        if (System.getenv("EG_INPUT") == "real") JNativeHookInputSource() else MockInputSource()
+    }
     val haptics = remember { MockHapticOutput() }
 
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
