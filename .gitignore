@@ -46,3 +46,6 @@ local.properties
 captures/
 .cxx/
 .externalNativeBuild/
+
+# Manager reports (local only)
+.handoff/

@@ -58,7 +58,7 @@ unless the demo depends on it. Prefer boring, well-known libraries we can debug 
 ## Team workflow (pull requests)
 - NEVER commit or push directly to `main`. `main` must ALWAYS run and be demoable.
 - One branch per task: `<name>/<topic>` (e.g. `ali/scam-detector`, `mehdi/home-screen`). Small PRs, merged within a few hours.
-- Ship with `/ship`: secret check, BUILD_LOG update, rebase on `origin/main`, PR, auto-merge (squash) when CI is green.
+- Ship with `/ship`: secret check, BUILD_LOG update, rebase on `origin/main`, PR, wait for CI (`gh pr checks --watch`). No auto-merge (disabled on this private repo): once CI is green, squash-merge it.
 - Run `/sync` often (at least every hour) to rebase on the latest `main` and avoid big conflicts.
 - CI (`.github/workflows/ci.yml`) adapts to the stack (Gradle/KMP, Node, Python) and always runs a secret scan (gitleaks). The required check is `ci-ok`. If CI fails on your PR, fix it before anything else.
 - Each person owns one area (see `docs/PLAN.md` → Roles) and mostly edits their own folder, to avoid merge conflicts.
@@ -79,8 +79,11 @@ unless the demo depends on it. Prefer boring, well-known libraries we can debug 
 - After finishing a task: say how to run/test it in one or two commands.
 - Keep `README.md` "How to run" accurate whenever setup steps change.
 
+## Reporting (Ali's machine only)
+After each task, overwrite `.handoff/report.md` with: task + issue number, what you did, how to test it (commands), CI/PR status + link, blockers, questions for the manager. Keep it under 40 lines.
+
 ## Useful custom commands
-- `/ship` — open a PR for my work, with auto-merge when CI is green.
+- `/ship` — open a PR for my work and wait until CI is green (then squash-merge by hand).
 - `/sync` — rebase my branch on the latest `main`.
 - `/checkpoint` — log progress, check for secrets, commit (on my branch).
 - `/demo-check` — verify the demo path works from a clean start and list what's broken.
