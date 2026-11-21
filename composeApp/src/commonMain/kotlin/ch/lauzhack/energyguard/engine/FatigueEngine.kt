@@ -165,6 +165,8 @@ class FatigueEngine(
         ema += alpha * (rawScore - ema)
         lastEmaTs = now
 
+        // Vision went silent (sidecar down) while eyes were closed: don't let input frames grow a fake micro-sleep.
+        if (lastVisionTs.let { it == null || now - it > MAX_VISION_GAP_MS }) eyesClosedSince = null
         val closedMs = eyesClosedSince?.let { now - it } ?: 0L
         val microSleep = closedMs > MICRO_SLEEP_MS
         if (microSleep) ema = max(ema, MICRO_SLEEP_SCORE)
