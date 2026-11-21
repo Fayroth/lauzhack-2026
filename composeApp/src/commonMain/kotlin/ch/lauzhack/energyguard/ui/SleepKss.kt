@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,13 +14,15 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +35,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +48,7 @@ import kotlin.math.sqrt
 // ---------- #15 "Sleep last night" slider ----------
 
 /** "Slept 6.5 h" + slider (3..9 h, half-hour steps). Writes SleepPrior, which the engine reads every frame. */
+@OptIn(ExperimentalMaterial3Api::class) // thumb / track slots of Slider
 @Composable
 fun SleepSlider(modifier: Modifier = Modifier) {
     var hours by remember { mutableFloatStateOf(SleepPrior.hours.toFloat()) }
@@ -54,13 +61,26 @@ fun SleepSlider(modifier: Modifier = Modifier) {
             valueRange = 3f..9f,
             steps = 11, // half hours
             modifier = Modifier.width(170.dp),
-            colors = SliderDefaults.colors(
-                thumbColor = Warm.Brand, activeTrackColor = Warm.Brand,
-                inactiveTrackColor = Warm.Track, activeTickColor = Warm.Brand, inactiveTickColor = Warm.Track,
-            ),
+            // Knob in the color of the chosen night: red for a short one, honey for a full one.
+            thumb = { Box(Modifier.size(22.dp).clip(CircleShape).background(sleepColor(hours))) },
+            track = { st -> SleepTrack((st.value - 3f) / 6f) },
         )
         Spacer(Modifier.width(8.dp))
         Text(hoursLabel(hours), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+    }
+}
+
+/** 3 h (short night) .. 9 h (full night) on the energy scale: red .. honey. */
+internal fun sleepColor(h: Float) = energyColor(((h - 3f) / 6f * 100).toInt().coerceIn(0, 100))
+
+/** The slider bar: the energy gradient (red → coral → apricot → honey) up to the knob, the plain track after it. */
+@Composable
+private fun SleepTrack(fraction: Float) {
+    Canvas(Modifier.fillMaxWidth().height(8.dp)) {
+        val r = CornerRadius(size.height / 2)
+        drawRoundRect(Warm.Track, cornerRadius = r)
+        val brush = Brush.horizontalGradient(listOf(Warm.Rose, Warm.Coral, Warm.Apricot, Warm.Honey), startX = 0f, endX = size.width)
+        drawRoundRect(brush, size = Size(size.width * fraction.coerceIn(0f, 1f), size.height), cornerRadius = r)
     }
 }
 

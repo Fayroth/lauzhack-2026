@@ -43,7 +43,7 @@ fun EnergyGauge(energy: Int, label: String, size: Dp = 360.dp, calibrating: Bool
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 if (calibrating) "..." else "$energy%",
-                fontSize = 92.sp, fontWeight = FontWeight.SemiBold,
+                fontSize = (size.value * 0.23f).sp, fontWeight = FontWeight.SemiBold, // fits "100%" inside the ring
                 color = if (calibrating) Warm.Calm else color,
             )
             Text(label, fontSize = 26.sp, color = if (calibrating) Warm.Text else color) // "Exhausted" in the gauge color
