@@ -20,7 +20,18 @@ data class VisionFrame(
     val yawn: Boolean? = null,
     val headPitch: Double? = null,
     val headYaw: Double? = null,
-    val source: String = "webcam",
+    /** Perception path: "logiinsight-rgb", "logiinsight-ir", "mediapipe", "mock" (older stubs: "webcam"). */
+    val source: String = "unknown",
+
+    // --- Optional, Logi Gaze Tracker (may be absent) ---
+    val gazeOnScreen: Boolean? = null,
+    val gazeX: Double? = null,          // 0..1, 0 = left
+    val gazeY: Double? = null,          // 0..1, 0 = top
+    val offScreenRatio: Double? = null, // fraction of the last 60 s with gaze off screen
+
+    // --- Optional, Logi Hands Tracker (may be absent) ---
+    val handNearEyes: Boolean? = null,  // eye rubbing
+    val headOnHand: Boolean? = null,
 )
 
 /** Mouse + keyboard statistics over a rolling window. Counts/timings only, NEVER key contents. */

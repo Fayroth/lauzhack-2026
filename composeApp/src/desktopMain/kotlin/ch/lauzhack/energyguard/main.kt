@@ -39,7 +39,7 @@ fun main() = application {
     val fatigue by engine.state.collectAsState()
 
     LaunchedEffect(vision) { vision.frames().collect { lastVision = it; engine.onVision(it) } }
-    LaunchedEffect(input) { input.stats().collect { lastInput = it; engine.onInput(it) } }
+    LaunchedEffect(input) { input.stats().collect { lastInput = it; engine.onInput(it, System.currentTimeMillis()) } }
     LaunchedEffect(fatigue.level) {
         when (fatigue.level) {
             Level.TIRED -> haptics.pulse(HapticPattern.GENTLE)

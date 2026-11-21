@@ -7,96 +7,220 @@ import ch.lauzhack.energyguard.model.VisionFrame
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.max
 import kotlin.math.roundToInt
-import kotlin.time.TimeSource
+import kotlin.math.sqrt
 
 /**
- * The brain: fuses vision + input signals into a 0-100 fatigue score.
+ * The brain: fuses vision + input signals into a 0-100 fatigue score (owner: Ali).
  *
- * PLACEHOLDER (owner: Ali). Current logic:
- *  - during the first [calibrationMs], averages each signal to build a personal baseline;
- *  - afterwards, score = weighted sum of how much each signal got worse vs baseline.
- * TODO: rolling windows, smoothing (EMA), better weights, tests on recorded data.
+ * Pure Kotlin, no clock of its own: every sample carries its timestamp (epoch ms), so it is deterministic.
+ *  1. Calibration: the first [calibrationMs] *with a face* (or of input time if no vision sidecar is running)
+ *     builds a personal baseline (mean/std) per signal.
+ *  2. Each signal is averaged over a rolling [windowMs] window and compared to its baseline as a z-score,
+ *     clipped to [0, 3] (blink rate is two-sided: both more and fewer blinks count).
+ *  3. Weighted average of the z-scores, renormalized over the signals that are actually available
+ *     (no face, no keyboard, no gaze tracker = those signals just drop out, no bias).
+ *  4. Time-based EMA smoothing, then levels with hysteresis (±[MARGIN] around 25/50/75).
+ *  5. Eyes closed > 1 s (micro-sleep) → instant TIRED.
+ *
+ * Not thread-safe: call onVision/onInput from one thread (the Compose main dispatcher does that).
  */
 class FatigueEngine(
     private val calibrationMs: Long = 60_000,
+    private val windowMs: Long = 60_000,
+    private val emaTauMs: Double = 10_000.0,
 ) {
     private val _state = MutableStateFlow(FatigueState.Initial)
     val state: StateFlow<FatigueState> = _state.asStateFlow()
 
-    private val clock = TimeSource.Monotonic
-    private var start: TimeSource.Monotonic.ValueTimeMark? = null
-    private var lastVision: VisionFrame? = null
-    private var lastInput: InputStats? = null
+    private enum class Sig(val weight: Double, val minStd: Double, val twoSided: Boolean = false) {
+        PERCLOS(30.0, 0.03),
+        BLINK_MS(20.0, 40.0),
+        BLINK_RATE(10.0, 3.0, twoSided = true),
+        JITTER(15.0, 0.05),
+        OVERSHOOT(10.0, 0.05),
+        BACKSPACE(9.0, 0.02),    // keyboard = 15 in total
+        INTER_KEY(6.0, 20.0),
+        OFF_SCREEN(5.0, 0.05),   // Logi Gaze Tracker, only if present
+        HAND_NEAR_EYES(5.0, 0.1), // Logi Hands Tracker, only if present
+    }
 
-    // Baseline accumulators (sum, count) per signal.
-    private val baseline = mutableMapOf<String, Pair<Double, Int>>()
+    /** Rolling window + baseline (Welford) for one signal. */
+    private class Track {
+        val window = ArrayDeque<Pair<Long, Double>>()
+        var windowSum = 0.0
+        var n = 0
+        var mean = 0.0
+        var m2 = 0.0
+        var firstTs = 0L
+        var lastTs = 0L
+        var frozen = false
+
+        val std get() = if (n > 1) sqrt(m2 / (n - 1)) else 0.0
+        val windowMean get() = windowSum / window.size
+
+        fun add(ts: Long, v: Double) {
+            window.addLast(ts to v); windowSum += v
+            if (!frozen) {
+                if (n == 0) firstTs = ts
+                lastTs = ts
+                n++
+                val d = v - mean
+                mean += d / n
+                m2 += d * (v - mean)
+            }
+        }
+
+        fun prune(oldest: Long) {
+            while (window.isNotEmpty() && window.first().first < oldest) windowSum -= window.removeFirst().second
+            if (window.isEmpty()) windowSum = 0.0
+        }
+    }
+
+    private class Contribution(val sig: Sig, val z: Double, val current: Double, val baseline: Double)
+
+    private val tracks = Sig.entries.associateWith { Track() }
+    private var now = Long.MIN_VALUE
+    private var calibrated = false
+    private var calibElapsedMs = 0L
+    private var lastFaceTs: Long? = null
+    private var lastVisionTs: Long? = null
+    private var lastInputTs: Long? = null
+    private var eyesClosedSince: Long? = null
+    private var ema = 0.0
+    private var lastEmaTs: Long? = null
+    private var level = Level.FRESH
 
     fun onVision(frame: VisionFrame) {
-        lastVision = frame
+        val ts = frame.ts
+        now = max(now, ts)
+        lastVisionTs = ts
+        if (frame.face) {
+            lastFaceTs?.let { if (!calibrated) calibElapsedMs += (ts - it).coerceIn(0, MAX_VISION_GAP_MS) }
+            lastFaceTs = ts
+            frame.perclos?.let { add(Sig.PERCLOS, ts, it) }
+            frame.lastBlinkMs?.let { add(Sig.BLINK_MS, ts, it.toDouble()) }
+            frame.blinkCount?.let { add(Sig.BLINK_RATE, ts, it.toDouble()) }
+            frame.offScreenRatio?.let { add(Sig.OFF_SCREEN, ts, it) }
+            frame.handNearEyes?.let { add(Sig.HAND_NEAR_EYES, ts, if (it) 1.0 else 0.0) }
+            eyesClosedSince = if (frame.eyesClosed == true) (eyesClosedSince ?: ts) else null
+        } else {
+            // No face: ignore the frame. No calibration credit across the gap, no micro-sleep.
+            lastFaceTs = null
+            eyesClosedSince = null
+        }
         recompute()
     }
 
-    fun onInput(stats: InputStats) {
-        lastInput = stats
+    /** [ts] = epoch ms when these stats were produced (InputStats has no timestamp of its own). */
+    fun onInput(stats: InputStats, ts: Long) {
+        now = max(now, ts)
+        // No vision sidecar at all: calibrate on input time so a mouse/keyboard-only setup still works.
+        val visionAbsent = lastVisionTs?.let { ts - it > VISION_ABSENT_MS } ?: true
+        if (!calibrated && visionAbsent) {
+            lastInputTs?.let { calibElapsedMs += (ts - it).coerceIn(0, MAX_INPUT_GAP_MS) }
+        }
+        lastInputTs = ts
+        if (stats.mouseDistancePx >= MIN_MOUSE_PX) add(Sig.JITTER, ts, stats.jitter)
+        if (stats.clickCount > 0) add(Sig.OVERSHOOT, ts, stats.overshootRatio)
+        if (stats.keyCount >= MIN_KEYS) {
+            add(Sig.BACKSPACE, ts, stats.backspaceRatio)
+            add(Sig.INTER_KEY, ts, stats.meanInterKeyMs)
+        }
         recompute()
     }
 
-    private fun signals(): Map<String, Double> = buildMap {
-        lastVision?.takeIf { it.face }?.let { v ->
-            v.perclos?.let { put("perclos", it) }
-            v.lastBlinkMs?.let { put("blinkMs", it.toDouble()) }
-        }
-        lastInput?.let { i ->
-            put("jitter", i.jitter)
-            put("overshoot", i.overshootRatio)
-            put("backspace", i.backspaceRatio)
-        }
+    private fun add(sig: Sig, ts: Long, v: Double) {
+        if (v.isFinite()) tracks.getValue(sig).add(ts, v) // untrusted sidecar data: drop NaN/Infinity
     }
 
     private fun recompute() {
-        val startMark = start ?: clock.markNow().also { start = it }
-        val current = signals()
-        val calibrated = startMark.elapsedNow().inWholeMilliseconds >= calibrationMs
+        tracks.values.forEach { it.prune(now - windowMs) }
 
-        if (!calibrated) {
-            current.forEach { (k, v) ->
-                val (s, n) = baseline[k] ?: (0.0 to 0)
-                baseline[k] = (s + v) to (n + 1)
+        if (!calibrated && calibElapsedMs >= calibrationMs) {
+            calibrated = true
+            tracks.values.forEach { it.frozen = it.n >= MIN_BASELINE_N }
+        }
+        if (calibrated) {
+            // Signals that showed up late (e.g. nobody typed during calibration) get their own shorter baseline.
+            tracks.values.forEach {
+                if (!it.frozen && it.n >= MIN_BASELINE_N && it.lastTs - it.firstTs >= calibrationMs / 2) it.frozen = true
             }
-            _state.value = FatigueState.Initial
-            return
         }
 
-        val reasons = mutableListOf<String>()
-        var score = 0.0
-        for ((key, value) in current) {
-            val (sum, n) = baseline[key] ?: continue
-            val base = (sum / n).coerceAtLeast(1e-6)
-            val increase = ((value - base) / base).coerceAtLeast(0.0) // 0.5 = 50 % worse than baseline
-            val w = WEIGHTS[key] ?: 0.0
-            score += w * increase.coerceAtMost(2.0) / 2.0 * 100
-            if (increase > 0.3) reasons += "${LABELS[key]} +${(increase * 100).roundToInt()}%"
+        val contributions = if (!calibrated) emptyList() else tracks.mapNotNull { (sig, t) ->
+            if (!t.frozen || t.window.isEmpty()) return@mapNotNull null
+            val current = t.windowMean
+            val std = maxOf(t.std, sig.minStd, 0.1 * abs(t.mean))
+            val raw = (current - t.mean) / std
+            Contribution(sig, (if (sig.twoSided) abs(raw) else raw).coerceIn(0.0, Z_MAX), current, t.mean)
         }
-        val s = score.roundToInt().coerceIn(0, 100)
-        _state.value = FatigueState(s, levelFor(s), reasons, calibrated = true)
+        val totalWeight = contributions.sumOf { it.sig.weight }
+        val rawScore = if (totalWeight > 0) contributions.sumOf { it.sig.weight * it.z / Z_MAX } / totalWeight * 100 else 0.0
+
+        val alpha = lastEmaTs?.let { 1 - exp(-(now - it).coerceAtLeast(0) / emaTauMs) } ?: 1.0
+        ema += alpha * (rawScore - ema)
+        lastEmaTs = now
+
+        val closedMs = eyesClosedSince?.let { now - it } ?: 0L
+        val microSleep = closedMs > MICRO_SLEEP_MS
+        if (microSleep) ema = max(ema, MICRO_SLEEP_SCORE)
+
+        val score = ema.roundToInt().coerceIn(0, 100)
+        level = nextLevel(level, score)
+        if (microSleep && level < Level.TIRED) level = Level.TIRED
+
+        val reasons = buildList {
+            if (microSleep) add("eyes closed ${tenths(closedMs)} s")
+            contributions.filter { it.z >= REASON_MIN_Z }
+                .sortedByDescending { it.sig.weight * it.z }
+                .take(3 - size)
+                .forEach { add(describe(it)) }
+        }
+        _state.value = FatigueState(score, level, reasons, calibrated)
     }
 
-    companion object {
-        private val WEIGHTS = mapOf(
-            "perclos" to 0.35, "blinkMs" to 0.25,
-            "jitter" to 0.15, "overshoot" to 0.15, "backspace" to 0.10,
-        )
-        private val LABELS = mapOf(
-            "perclos" to "eyes closing", "blinkMs" to "long blinks",
-            "jitter" to "mouse jitter", "overshoot" to "mouse overshoot", "backspace" to "typos",
-        )
+    private fun describe(c: Contribution): String {
+        val pct = if (abs(c.baseline) < 1e-3) null else ((c.current - c.baseline) / abs(c.baseline) * 100).roundToInt()
+        val delta = pct?.let { if (it >= 0) " +$it%" else " $it%" } ?: ""
+        return when (c.sig) {
+            Sig.PERCLOS -> "eyes closing$delta"
+            Sig.BLINK_MS -> "long blinks$delta"
+            Sig.BLINK_RATE -> "blink rate$delta"
+            Sig.JITTER -> "shaky mouse$delta"
+            Sig.OVERSHOOT -> "mouse overshoot$delta"
+            Sig.BACKSPACE -> "more typos$delta"
+            Sig.INTER_KEY -> "slower typing$delta"
+            Sig.OFF_SCREEN -> "looking away ${(c.current * 100).roundToInt()}% of the time"
+            Sig.HAND_NEAR_EYES -> "rubbing eyes"
+        }
+    }
 
-        fun levelFor(score: Int): Level = when {
-            score < 25 -> Level.FRESH
-            score < 50 -> Level.OK
-            score < 75 -> Level.TIRED
-            else -> Level.EXHAUSTED
+    private fun tenths(ms: Long): String = (ms / 100).let { "${it / 10}.${it % 10}" }
+
+    companion object {
+        const val MARGIN = 5
+        private val BOUNDS = intArrayOf(25, 50, 75) // FRESH | OK | TIRED | EXHAUSTED
+        private const val Z_MAX = 3.0
+        private const val REASON_MIN_Z = 1.0
+        private const val MICRO_SLEEP_MS = 1_000L
+        private const val MICRO_SLEEP_SCORE = 60.0
+        private const val MAX_VISION_GAP_MS = 1_000L
+        private const val MAX_INPUT_GAP_MS = 2_000L
+        private const val VISION_ABSENT_MS = 5_000L
+        private const val MIN_BASELINE_N = 3
+        private const val MIN_MOUSE_PX = 100.0
+        private const val MIN_KEYS = 10
+
+        /** Level with hysteresis: go up only at bound + MARGIN, go down only below bound - MARGIN. */
+        fun nextLevel(current: Level, score: Int): Level {
+            var i = current.ordinal
+            while (i < BOUNDS.size && score >= BOUNDS[i] + MARGIN) i++
+            if (i == current.ordinal) while (i > 0 && score < BOUNDS[i - 1] - MARGIN) i--
+            return Level.entries[i]
         }
     }
 }
