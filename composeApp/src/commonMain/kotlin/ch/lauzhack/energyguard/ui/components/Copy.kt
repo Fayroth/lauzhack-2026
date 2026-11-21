@@ -13,15 +13,7 @@ fun levelLabel(level: Level): String = when (level) {
     Level.EXHAUSTED -> "Exhausted"
 }
 
-/** One or two words, shown big next to the gauge. */
-fun levelHint(level: Level): String = when (level) {
-    Level.FRESH -> "Sharp"
-    Level.OK -> "Steady"
-    Level.TIRED -> "Fading"
-    Level.EXHAUSTED -> "Rest now"
-}
-
-/** The sentence under [levelHint]. */
+/** The sentence under the level name. */
 fun levelSentence(level: Level): String = when (level) {
     Level.FRESH -> "You're at your best. Good time for hard work."
     Level.OK -> "Working normally."

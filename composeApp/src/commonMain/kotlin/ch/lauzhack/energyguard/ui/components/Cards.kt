@@ -145,7 +145,13 @@ fun MetricCard(
 
 /** Bottom-row tile: big value with small units, label under it. */
 @Composable
-fun StatTile(parts: List<DurationPart>, label: String, modifier: Modifier = Modifier, valueColor: Color = Eg.colors.text) {
+fun StatTile(
+    parts: List<DurationPart>,
+    label: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = Eg.colors.text,
+    labelMaxLines: Int = 1,
+) {
     val c = Eg.colors
     EgCard(modifier) {
         Text(
@@ -158,17 +164,17 @@ fun StatTile(parts: List<DurationPart>, label: String, modifier: Modifier = Modi
             },
             style = EgType.value, color = valueColor, maxLines = 1,
         )
-        Text(label, style = EgType.label, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = EgType.label, color = c.muted, maxLines = labelMaxLines, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-fun StatTile(value: String, label: String, modifier: Modifier = Modifier, valueColor: Color = Eg.colors.text) =
-    StatTile(listOf(DurationPart(value, "")), label, modifier, valueColor)
+fun StatTile(value: String, label: String, modifier: Modifier = Modifier, valueColor: Color = Eg.colors.text, labelMaxLines: Int = 1) =
+    StatTile(listOf(DurationPart(value, "")), label, modifier, valueColor, labelMaxLines)
 
 /** Last coach note with its "AI" / "offline" tag; calm empty state when there is none. */
 @Composable
-fun CoachCard(note: CoachNote?, modifier: Modifier = Modifier, format: (String) -> String = { it }) {
+fun CoachCard(note: CoachNote?, modifier: Modifier = Modifier, format: (String) -> String = { it }, maxLines: Int = 2) {
     val c = Eg.colors
     EgCard(modifier) {
         CardTitle("Coach") {
@@ -178,7 +184,7 @@ fun CoachCard(note: CoachNote?, modifier: Modifier = Modifier, format: (String) 
         if (note == null) {
             Text("No advice needed. You're doing fine.", style = EgType.lead, color = c.muted)
         } else {
-            Text(format(note.text), style = EgType.lead, color = c.text, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(format(note.text), style = EgType.lead, color = c.text, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
         }
     }
 }

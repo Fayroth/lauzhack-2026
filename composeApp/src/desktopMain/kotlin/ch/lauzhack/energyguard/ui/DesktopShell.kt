@@ -43,13 +43,6 @@ import ch.lauzhack.energyguard.ui.components.PlaceholderScreen
 import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.today.TodayScreen
 
-/** The 3 tabs; keys 1 / 2 / 3 select them (main.kt). */
-enum class Tab(val label: String, val icon: EgIcon) {
-    TODAY("Today", EgIcon.TODAY),
-    JOURNAL("Journal", EgIcon.JOURNAL),
-    PROFILE("Profile", EgIcon.PROFILE),
-}
-
 /**
  * Desktop shell (M2): navigation rail on the left, header / tab content / footer on the right, all driven by [state].
  * [overlay] is drawn over everything (break alert). Theme = Settings.theme (the old Warm palette follows it).

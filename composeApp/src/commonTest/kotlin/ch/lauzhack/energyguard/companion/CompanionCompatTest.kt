@@ -4,7 +4,9 @@ import ch.lauzhack.energyguard.app.BreakSource
 import ch.lauzhack.energyguard.app.TestClock
 import ch.lauzhack.energyguard.coach.Intervention
 import ch.lauzhack.energyguard.model.FatigueState
+import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.Level
+import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.DashboardState
 import kotlinx.serialization.Serializable
 import kotlin.test.Test
@@ -79,5 +81,40 @@ class CompanionCompatTest {
         assertEquals(0, s.stats?.breaksTaken)
         assertEquals(2, s.stats?.phishingBlocked)
         assertEquals(Intervention.BREAK, CompanionCoach("x", Intervention.BREAK, false).kind)
+    }
+
+    @Test fun phoneGetsThePcLiveSignals() {
+        val clock = TestClock()
+        val store = clock.store()
+        store.setDashboard(DashboardState(
+            vision = VisionFrame(ts = 0, face = true, blinkCount = 22, perclos = 0.18, eyesClosed = false, source = "logiinsight-ir"),
+            input = InputStats(30_000, 4200.0, 6, overshootRatio = 1.25, jitter = 2.0, keyCount = 55, backspaceRatio = 0.12, meanInterKeyMs = 268.0),
+        ))
+        val json = CompanionJson.encodeToString(CompanionState.serializer(), store.state.value.toCompanionState(clock.now))
+        val s = CompanionJson.decodeFromString(CompanionState.serializer(), json).clampAppFields()
+        val signals = s.phoneSignals()
+        assertEquals("Logitech webcam · IR", signals.source)
+        assertEquals(22, signals.blinksPerMin)
+        assertEquals(18, signals.perclosPct)
+        assertEquals(80, signals.precisionPct)
+        assertEquals(268, signals.msPerKey)
+        assertEquals(12, signals.backspacePct)
+        assertNotNull(s.energy?.sleepHours)
+        assertFalse("SECRET" in json)
+    }
+
+    @Test fun phoneFallsBackToRawSignalsFromAnOldPc() {
+        val oldJson = """{"score":40,"level":"OK","reasons":[],"calibrated":true,"ts":1,
+            "vision":{"ts":1,"face":true,"blinkCount":9,"perclos":0.05,"source":"mediapipe"},
+            "input":{"windowMs":30000,"mouseDistancePx":100.0,"clickCount":1,"overshootRatio":1.0,"jitter":1.4,
+                     "keyCount":0,"backspaceRatio":0.0,"meanInterKeyMs":0.0}}"""
+        val s = CompanionJson.decodeFromString(CompanionState.serializer(), oldJson).clampAppFields()
+        assertNull(s.signals)
+        val signals = s.phoneSignals()
+        assertEquals("MediaPipe", signals.source)
+        assertEquals(9, signals.blinksPerMin)
+        assertNull(signals.jitterX, "no baseline on the phone: raw jitter only")
+        assertEquals(1.4, signals.jitterPerS)
+        assertEquals(false, signals.typing)
     }
 }

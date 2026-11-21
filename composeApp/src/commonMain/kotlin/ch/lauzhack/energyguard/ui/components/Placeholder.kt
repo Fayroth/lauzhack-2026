@@ -9,16 +9,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** A tab that is not built yet: same card style, centered. */
+/** A tab that is not built yet: same card style, centered. [minWidth]: 480 dp on desktop, 0 on a phone. */
 @Composable
-fun PlaceholderScreen(icon: EgIcon, title: String, description: String, modifier: Modifier = Modifier) {
+fun PlaceholderScreen(icon: EgIcon, title: String, description: String, modifier: Modifier = Modifier, minWidth: Dp = 480.dp) {
     val c = Eg.colors
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         EgCard(Modifier.widthIn(max = 560.dp)) {
             androidx.compose.foundation.layout.Column(
-                Modifier.widthIn(min = 480.dp),
+                Modifier.widthIn(min = minWidth),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(EgSpace.s),
             ) {

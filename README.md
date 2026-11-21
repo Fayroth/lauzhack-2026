@@ -85,10 +85,11 @@ Venue / eduroam Wi-Fi usually blocks device-to-device traffic, so **put the lapt
    (drop `EG_DEMO` for real sensors). Bottom-left of the dashboard + console: `Phone: 192.168.x.y:8767 · code 123456`.
 4. **Windows Firewall prompt** ("Java(TM) Platform SE binary"): tick **Private networks only**, then **Allow**.
    If you once clicked Cancel/Deny: `wf.msc` → Inbound Rules → the `java` / `OpenJDK Platform binary` rules → allow on Private.
-5. Phone: open EnergyGuard → **Connect to your PC** → type the IP, port `8767`, the code → **Connect**.
-   The gauge follows the PC within ~1 s (green "LIVE from your PC" marker). IP and port are remembered; the code
-   is asked again after each PC app restart.
-- Wrong code → "Wrong code". PC app closed / Wi-Fi lost → red "Not connected to your PC" banner + local demo replay, retries every second.
+5. Phone: open EnergyGuard → **Connect** on Today (or the **Profile** tab) → type the IP, port `8767`, the code → **Connect**.
+   Today follows the PC within ~1 s (green "Live from your PC" chip, Live signals = the PC's webcam / mouse / keyboard rows).
+   Live, Today is read-only (break + sleep are changed on the PC). IP and port are remembered; the code is asked again
+   after each PC app restart. **Profile → Change PC** to pair another PC.
+- Wrong code → Profile tab "Wrong code". PC app closed / Wi-Fi lost → "Can't reach your PC" card + local demo replay, retries every second.
 - Other options: `EG_COMPANION_PORT` (default 8767), `EG_COMPANION_HOST` (force the IP to listen on, if the dashboard shows the wrong one).
 - **USB backup** if Wi-Fi fails on stage: `adb reverse tcp:8767 tcp:8767`, then on the phone use address `127.0.0.1`
   (the PC also listens on 127.0.0.1 when `EG_COMPANION=1`).
@@ -96,8 +97,10 @@ Venue / eduroam Wi-Fi usually blocks device-to-device traffic, so **put the lapt
 ### Android (2nd platform, #41)
 The phone runs the **same `commonMain` code** as the desktop demo mode: `DemoScript` + sample builders → `FatigueEngine`
 (baseline, score, reasons) → `FrugalEnergyCoach` (offline templates: no API key on the phone) → `HapticTrigger` →
-the shared Compose `App()` dashboard, scaled to the screen in landscape. The gauge drops live: FRESH → TIRED ~60 s → EXHAUSTED ~90 s,
-the phone vibrates on TIRED (1 buzz) and EXHAUSTED (3 buzzes). **Replay** (bottom-left) = desktop F5.
+the phone's own `AppStore` → the shared phone shell (portrait, bottom bar Today / Journal / Profile, same design tokens and
+cards as the desktop Today). The gauge drops live: FRESH → TIRED ~60 s → EXHAUSTED ~90 s,
+the phone vibrates on TIRED (1 buzz) and EXHAUSTED (3 buzzes). **Replay the demo** (bottom of Today) = desktop F5.
+Screens: `docs/screens/phone-*.png`.
 
 | Shared (`commonMain`, both platforms) | Platform-specific |
 |---|---|
