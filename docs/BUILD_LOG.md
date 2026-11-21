@@ -21,6 +21,8 @@ novel relative to the resources it uses, and teams must make that explicit).
 
 | Sat 18:30 | Ali | Dashboard timing contract: `DashboardState.calibrationMs` / `windowMs` / `runId` filled by `main.kt` (demo 15 s / 10 s, real 60 s / 60 s, runId +1 on F5) so the UI countdown, window label and trend reset follow the real engine; usage documented in `docs/API.md` |
 
+| Sat 18:45 | Ali | Demo inbox (#13): `ui/DemoInbox.kt`, 4 emails (PayPal lookalike phishing, legit EPFL news, 2 fillers); every link click goes through `LocalGuard` → Allow = page opened, Warn = "Are you sure?" dialog, Block = full red screen with reason + signals. Opened as a second window from `main.kt` (same `LocalGuard`), at start in demo mode, F2 otherwise |
+
 ## Reused resources
 | Resource | Link | Used for |
 |----------|------|----------|

@@ -41,6 +41,7 @@ import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.App
 import ch.lauzhack.energyguard.ui.DashboardState
+import ch.lauzhack.energyguard.ui.DemoInbox
 import ch.lauzhack.energyguard.ui.brand.energyGuardIcon
 import ch.lauzhack.energyguard.vision.MockVisionSource
 import ch.lauzhack.energyguard.vision.WebSocketVisionSource
@@ -59,6 +60,7 @@ private const val VISION_STALE_MS = 2_000L
  * Haptics: console mock by default, real MX Master 4 vibration with env var EG_HAPTICS=mx.
  * Coach: EnergyCoach on level changes (OpenRouter if OPENROUTER_API_KEY is set, else offline templates; EG_COACH=offline forces templates).
  * Demo mode (EG_DEMO=1): scripted fatigue ramp into the same engine (demo/DemoMode.kt), F5 replays it, "DEMO" marker.
+ * Inbox: second window "EnergyGuard — Inbox" (guardrail demo, ui/DemoInbox.kt), open at start in demo mode, F2 on the dashboard opens it.
  */
 fun main() = application {
     val demo = remember { System.getenv("EG_DEMO") == "1" }
@@ -86,6 +88,8 @@ fun main() = application {
             guardrail.check(action, engine.state.value).also { if (it is Verdict.Block) haptics.pulse(HapticPattern.WARNING) }
         }
     }
+
+    var showInbox by remember { mutableStateOf(demo) }
 
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
@@ -120,18 +124,21 @@ fun main() = application {
         }
     }
 
-    Window(
-        onCloseRequest = ::exitApplication,
-        title = if (demo) "EnergyGuard (demo mode)" else "EnergyGuard",
-        icon = rememberVectorPainter(remember { energyGuardIcon() }),
-        state = rememberWindowState(width = 1280.dp, height = 800.dp),
-        onKeyEvent = {
-            if (demo && it.type == KeyEventType.KeyDown && it.key == Key.F5) {
-                demoClock.restart(); demoRun++; true
-            } else false
-        },
-    ) {
-        CompositionLocalProvider(LocalGuard provides guard) {
+    // Both windows share LocalGuard: the inbox checks links against the same live fatigue + haptics.
+    CompositionLocalProvider(LocalGuard provides guard) {
+        Window(
+            onCloseRequest = ::exitApplication,
+            title = if (demo) "EnergyGuard (demo mode)" else "EnergyGuard",
+            icon = rememberVectorPainter(remember { energyGuardIcon() }),
+            state = rememberWindowState(width = 1280.dp, height = 800.dp),
+            onKeyEvent = {
+                if (demo && it.type == KeyEventType.KeyDown && it.key == Key.F5) {
+                    demoClock.restart(); demoRun++; true
+                } else if (it.type == KeyEventType.KeyDown && it.key == Key.F2) {
+                    showInbox = true; true
+                } else false
+            },
+        ) {
             Box {
                 App(
                     DashboardState(
@@ -143,6 +150,14 @@ fun main() = application {
                 )
                 if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
             }
+        }
+        if (showInbox) {
+            Window(
+                onCloseRequest = { showInbox = false },
+                title = "EnergyGuard — Inbox",
+                icon = rememberVectorPainter(remember { energyGuardIcon() }),
+                state = rememberWindowState(width = 1280.dp, height = 800.dp),
+            ) { DemoInbox() }
         }
     }
 }
