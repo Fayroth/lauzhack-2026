@@ -22,7 +22,7 @@ If the user asks for a new feature after the freeze, remind them of the freeze b
   2. A teammate "gets tired": long blinks, eyes half closed, shaky/imprecise mouse, more typos → the gauge drops in real time.
   3. The MX Master 4 vibrates gently + suggestion "5-min break" on screen.
   4. Guardrail: while the gauge is low, he clicks a phishing link in our demo inbox → blocked with a clear warning + haptic pulse. "Tired humans click on phishing: we raise the guard exactly when you lower yours."
-  5. Frugality counter: "all signals computed locally, 1 LLM call per hour, 0 images leave the PC".
+  5. Frugality counter: "all signals computed locally, AI only on level changes, max 1 LLM call per 10 min, counter shows real calls, 0 images leave the PC".
 - **AI story (3 layers, say it this way to the jury):**
   1. **Perception on Logitech hardware:** LogiInsight Python SDK (on-device face mesh, RGB + IR streams), Logi Gaze Tracker, Logi Hands Tracker. MediaPipe is only the fallback, behind the same interface.
   2. **Personalized, explainable fusion** in `commonMain` (`FatigueEngine`): personal baseline, weighted score, human-readable `reasons`.

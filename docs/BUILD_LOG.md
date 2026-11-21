@@ -14,6 +14,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 16:30 | Zyad | Fix input-only calibration with the real 5 s input cadence (was 150 s instead of 60 s) + regression test |
 | Sat 16:38 | Ali | Guardrail "double vigilance": deterministic phishing checks (text/href mismatch, lookalike brands with 0→o / rn→m, punycode, raw IP, user@host trick, urgency words, shorteners, cheap TLDs); strong signals block when TIRED and only warn when FRESH; plain-words reasons; `LocalGuard` for the UI + haptic WARNING on block; 8 unit tests |
 | Sat 17:30 | Zyad | Real MX Master 4 haptics (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): HID report ported from the WebHID library to Kotlin/hid4java, opens the vendor HID collection over Bluetooth, background thread, falls back to console + beep if the mouse is absent; TIRED = gentle pulse, EXHAUSTED = warning pulse |
+| Sat 17:45 | Ali | EnergyCoach (#21, folds #29/#31): frugal LLM coach in `commonMain` — fires only on level changes involving TIRED/EXHAUSTED, max 1 OpenRouter call / 10 min, 5 s timeout off the UI thread, prompt = numbers + whitelisted engine reasons only, picks BREAK vs STAND_UP vs RECOVERED, offline templates on no key / error / timeout / rate limit, real `llmCallCount` + last message in `DashboardState`; 7 tests with a fake LLM |
 | Sat 17:07 | Ali | Demo mode (`EG_DEMO=1`, #10): scripted fatigue ramp fed through the real pipeline (mock sources → FatigueEngine with 15 s calibration / 10 s window → gauge, reasons, haptics, guardrail), F5 replays it, discreet "DEMO" marker; test checks TIRED ≈ 60 s and EXHAUSTED ≈ 90 s |
 
 ## Reused resources
@@ -35,3 +36,5 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Logi Actions SDK (haptics) | https://logitech.github.io/actions-sdk-docs/ | MX Master 4 haptic feedback |
 | MX Master 4 WebHID haptics library (MIT) | https://github.com/mario-gutierrez/mx-master-4-webhid | Source of the haptic HID report bytes (0x11, 0x0B4E, effect id), ported to Kotlin in `MxMaster4HapticOutput` |
 | OpenRouter | https://openrouter.ai | LLM API for the EnergyCoach |
+| Claude Haiku 5.5 via OpenRouter (`anthropic/claude-haiku-5.5`) | https://openrouter.ai/anthropic/claude-haiku-5.5 | Small cheap model that writes the one-sentence coach message (override: `EG_COACH_MODEL`) |
+| kotlinx-coroutines-test | https://github.com/Kotlin/kotlinx.coroutines | Virtual time in the EnergyCoach tests (timeout, rate limit) |
