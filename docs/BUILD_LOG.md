@@ -20,6 +20,8 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 17:45 | Mehdi | Dashboard polish (#7): 5-min energy trend, "now" vs "last minute" labels, warm evening theme (honey→rose energy scale, energy-tinted background), all colors in `ui/Theme.kt`, 8 dp spacing grid, animated liquid-battery logo tinted by the user's state (static icon for the window), reasons shown as factors (×2.1 vs usual) |
 | Sat 18:30 | Mehdi | Escalating break alert (#8), inspired by cars' drowsiness assistants: "Break soon?" pill when TIRED → break card if ignored (or at once when EXHAUSTED) → full-screen "Stop" if still ignored, and at once on a micro-sleep ("Your eyes just closed", "I'm awake"). Snooze / dismiss per episode, coffee-cup icon, short delays in demo mode, shows the EnergyCoach text when there is one (stand-up variant for #29); pure `BreakAlertLogic` with 9 unit tests |
 
+| Sat 18:30 | Ali | Dashboard timing contract: `DashboardState.calibrationMs` / `windowMs` / `runId` filled by `main.kt` (demo 15 s / 10 s, real 60 s / 60 s, runId +1 on F5) so the UI countdown, window label and trend reset follow the real engine; usage documented in `docs/API.md` |
+
 ## Reused resources
 | Resource | Link | Used for |
 |----------|------|----------|

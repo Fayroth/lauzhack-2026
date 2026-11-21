@@ -133,7 +133,14 @@ fun main() = application {
     ) {
         CompositionLocalProvider(LocalGuard provides guard) {
             Box {
-                App(DashboardState(fatigue, lastVision, lastInput, coachMessage, llmCalls), demo = demo)
+                App(
+                    DashboardState(
+                        fatigue, lastVision, lastInput, coachMessage, llmCalls,
+                        calibrationMs = if (demo) DemoScript.CALIBRATION_MS else FatigueEngine.DEFAULT_CALIBRATION_MS,
+                        windowMs = if (demo) DemoScript.WINDOW_MS else FatigueEngine.DEFAULT_WINDOW_MS,
+                        runId = demoRun,
+                    )
+                )
                 if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
             }
         }

@@ -29,8 +29,8 @@ import kotlin.math.sqrt
  * Not thread-safe: call onVision/onInput from one thread (the Compose main dispatcher does that).
  */
 class FatigueEngine(
-    private val calibrationMs: Long = 60_000,
-    private val windowMs: Long = 60_000,
+    private val calibrationMs: Long = DEFAULT_CALIBRATION_MS,
+    private val windowMs: Long = DEFAULT_WINDOW_MS,
     private val emaTauMs: Double = 10_000.0,
 ) {
     private val _state = MutableStateFlow(FatigueState.Initial)
@@ -204,6 +204,9 @@ class FatigueEngine(
     private fun tenths(ms: Long): String = (ms / 100).let { "${it / 10}.${it % 10}" }
 
     companion object {
+        /** Real-mode defaults; also reported to the UI through DashboardState (demo mode uses shorter values). */
+        const val DEFAULT_CALIBRATION_MS = 60_000L
+        const val DEFAULT_WINDOW_MS = 60_000L
         const val MARGIN = 5
         private val BOUNDS = intArrayOf(25, 50, 75) // FRESH | OK | TIRED | EXHAUSTED
         private const val Z_MAX = 3.0

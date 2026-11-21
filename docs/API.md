@@ -93,6 +93,19 @@ class FatigueEngine {
 - Eyes closed > 1 s → instant `TIRED` (reason `"eyes closed 1.2 s"`).
 - Levels use hysteresis: up at 30/55/80, down below 20/45/70.
 
+### Engine timing for the UI (`DashboardState`)
+`main.kt` tells the dashboard how the current engine is configured, so the UI never hardcodes it:
+```kotlin
+val calibrationMs: Long // real 60 000 (FatigueEngine.DEFAULT_CALIBRATION_MS), demo 15 000 (DemoScript.CALIBRATION_MS)
+val windowMs: Long      // real 60 000 (FatigueEngine.DEFAULT_WINDOW_MS),      demo 10 000 (DemoScript.WINDOW_MS)
+val runId: Int          // 0 at start, +1 on each F5 demo replay (fresh engine)
+```
+How the UI should use them (owner: Mehdi):
+- Calibration countdown: count down from `calibrationMs / 1000` instead of the hardcoded `CALIBRATION_SECONDS = 60`.
+- Window label: build "over the last ..." from `windowMs` (60 000 → "last minute", 10 000 → "last 10 s").
+- Per-run state: key it on the run, e.g. `remember(state.runId) { ... }` for the 5-min trend history
+  (and the countdown start mark), so F5 clears the old curve instead of drawing a jump to 100%.
+
 ## EnergyCoach (commonMain)
 Frugal generative layer: turns the fusion result into one short, personalized intervention.
 LLM via OpenRouter (Ktor client, key `OPENROUTER_API_KEY` in `.env` only).
