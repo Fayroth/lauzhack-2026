@@ -43,6 +43,7 @@ kotlin {
             implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.websockets)
             implementation(libs.jnativehook)
+            implementation(libs.hid4java)
         }
     }
 }
