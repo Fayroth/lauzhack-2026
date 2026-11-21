@@ -145,12 +145,12 @@ Rules:
 - Every real LLM call that returned a message increments `llmCallCount` (a failed attempt still uses the 10-min slot).
 - Reason strings are filtered to the engine's vocabulary (lowercase words, numbers, `%`, `+`, `-`, `.`, max 40 chars, top 3).
 
-## Haptics (desktop)
+## Haptics (interface + trigger in commonMain; MX Master 4 on desktop, phone Vibrator on Android)
 ```kotlin
 enum class HapticPattern { GENTLE, WARNING }
 interface HapticOutput { fun pulse(pattern: HapticPattern) }
 ```
-When (`HapticTrigger`, desktopMain): GENTLE on entering TIRED, WARNING on entering EXHAUSTED, only on the way up,
+When (`HapticTrigger`, commonMain): GENTLE on entering TIRED, WARNING on entering EXHAUSTED, only on the way up,
 at most once per 2 min (except an escalation GENTLE → WARNING, never swallowed).
 Real implementation (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): sends HID report `0x11` + `[0x02, 0x0B, 0x4E, effectId, 0…]` (19 bytes) to the vendor HID collection of the MX Master 4 (046D:B042 / B048), bytes from the WebHID library. `GENTLE` / `WARNING` effect numbers can be overridden with `EG_HAPTIC_GENTLE` / `EG_HAPTIC_WARNING` (0–14). If the mouse is absent: console line + system beep. One gentle pulse at startup confirms the mouse is connected.
 Also: one WARNING every time the Guardrail returns `Block` (see below).
