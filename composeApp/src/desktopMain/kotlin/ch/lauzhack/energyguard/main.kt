@@ -26,8 +26,7 @@ import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.App
 import ch.lauzhack.energyguard.ui.DashboardState
-import ch.lauzhack.energyguard.ui.Warm
-import ch.lauzhack.energyguard.ui.brand.energyGuardLogo
+import ch.lauzhack.energyguard.ui.brand.energyGuardIcon
 import ch.lauzhack.energyguard.vision.MockVisionSource
 import ch.lauzhack.energyguard.vision.WebSocketVisionSource
 import kotlinx.coroutines.delay
@@ -92,7 +91,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "EnergyGuard",
-        icon = rememberVectorPainter(remember { energyGuardLogo(Warm.Brand, Warm.Text, background = Warm.Night) }),
+        icon = rememberVectorPainter(remember { energyGuardIcon() }),
         state = rememberWindowState(width = 1280.dp, height = 800.dp),
     ) {
         CompositionLocalProvider(LocalGuard provides guard) {

@@ -1,78 +1,144 @@
 package ch.lauzhack.energyguard.ui.brand
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathBuilder
 import androidx.compose.ui.graphics.vector.path
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
+import ch.lauzhack.energyguard.model.FatigueState
 import ch.lauzhack.energyguard.ui.Warm
+import ch.lauzhack.energyguard.ui.energyColor
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
+
+/*
+ * EnergyGuard logo: a horizontal battery filled with liquid that rocks like water in a bottle,
+ * with a wave that builds on one side and rolls back. Drawn on a 64x64 grid.
+ * The color follows the user's state (honey when fresh ... rose when exhausted, calm blue while calibrating).
+ */
+
+// Inner (liquid) area of the battery, on the 64x64 grid.
+private const val IX = 9.5f
+private const val IY = 21.5f
+private const val IW = 38f
+private const val IH = 21f
+private const val LEVEL = IY + IH * 0.58f // fixed fill level
+
+/** One full loop of the animation; a multiple of both the rocking (2.6 s) and ripple (0.8 s) periods. */
+private const val LOOP_S = 10.4f
+
+/** Liquid surface height at [x] and time [t] (seconds). */
+private fun surface(x: Float, level: Float, t: Float): Float {
+    val u = (x - (IX + IW / 2)) / (IW / 2)                 // -1..1 across the battery
+    val tilt = sin(2 * PI * t / 2.6).toFloat()             // the liquid rocks side to side
+    val pos = 0.5f * tilt                                  // the big wave travels with it
+    val d = u - pos
+    val dir = if (cos(2 * PI * t / 2.6) >= 0) 1f else -1f
+    val width = if (d * dir > 0) 0.22f else 0.55f          // steep front, long back: a breaking wave
+    val crest = (4.5f + 3f * abs(tilt)) * exp(-(d * d) / (width * width))
+    val e = u - pos + 0.6f * dir
+    val trough = 1.8f * exp(-(e * e) / 0.08f)
+    val ripple = 0.45f * sin(7 * u - 2 * PI * t / 0.8).toFloat()
+    return level - tilt * 2.5f * u - crest + trough + ripple
+}
+
+private fun surfacePath(level: Float, t: Float, closeToBottom: Boolean): Path = Path().apply {
+    var x = IX - 1
+    moveTo(x, surface(x, level, t))
+    while (x < IX + IW + 1) {
+        x += 0.5f
+        lineTo(x, surface(x, level, t))
+    }
+    if (closeToBottom) {
+        lineTo(IX + IW + 1, IY + IH + 2)
+        lineTo(IX - 1, IY + IH + 2)
+        close()
+    }
+}
+
+/** Animated logo for the app header, tinted by the current energy level. */
+@Composable
+fun EnergyGuardLogo(fatigue: FatigueState, modifier: Modifier = Modifier) {
+    val target = if (fatigue.calibrated) energyColor(fatigue.energy) else Warm.Calm
+    val color by animateColorAsState(target, tween(1200), label = "logoColor")
+    val t by rememberInfiniteTransition(label = "liquid").animateFloat(
+        initialValue = 0f,
+        targetValue = LOOP_S,
+        animationSpec = infiniteRepeatable(tween((LOOP_S * 1000).toInt(), easing = LinearEasing)),
+        label = "t",
+    )
+    Canvas(modifier) {
+        val s = size.minDimension / 64f
+        scale(s, s, pivot = Offset.Zero) {
+            val inner = Path().apply { addRoundRect(RoundRect(IX, IY, IX + IW, IY + IH, CornerRadius(4.5f))) }
+            clipPath(inner) {
+                drawPath(surfacePath(LEVEL - 1.2f, t - 0.25f, true), color.copy(alpha = 0.35f))
+                drawPath(
+                    surfacePath(LEVEL, t, true),
+                    Brush.verticalGradient(listOf(color.copy(alpha = 0.85f), color), startY = IY, endY = IY + IH),
+                )
+                // Foam line along the surface.
+                drawPath(surfacePath(LEVEL, t, false), Color.White.copy(alpha = 0.55f), style = Stroke(1.6f, cap = StrokeCap.Round))
+            }
+            // Battery body and terminal.
+            drawRoundRect(color, Offset(6f, 18f), Size(45f, 28f), CornerRadius(7.5f), style = Stroke(4f))
+            drawRoundRect(color, Offset(52.5f, 26.5f), Size(5f, 11f), CornerRadius(2.2f))
+        }
+    }
+}
 
 /**
- * EnergyGuard logo: a smiling computer screen flexing two little arms ("your computer has your back").
- * Line icon on a 64x64 grid, round caps, constant stroke, two colors (screen in [screen], arms in [arms]).
- * Pure vector (no image file), so it works on Desktop and Android and stays sharp from 16 to 256 px.
- * [background], if set, fills a rounded square behind it: used for the window/dock icon, where the
- * desktop behind it can be light or dark.
+ * Static version (one frame, brand green) for the window / dock icon, which cannot animate.
+ * [background] fills a rounded square behind it so it shows on light and dark docks.
  */
-fun energyGuardLogo(screen: Color, arms: Color, background: Color? = null): ImageVector {
-    return ImageVector.Builder("EnergyGuardLogo", 64.dp, 64.dp, 64f, 64f).apply {
-        if (background != null) {
-            path(fill = SolidColor(background)) { roundedRect(0f, 0f, 64f, 64f, 14f) }
+fun energyGuardIcon(color: Color = Warm.Brand, background: Color? = Warm.Night): ImageVector =
+    ImageVector.Builder("EnergyGuardIcon", 64.dp, 64.dp, 64f, 64f).apply {
+        if (background != null) path(fill = SolidColor(background)) { roundRect(0f, 0f, 64f, 64f, 14f) }
+        val t = 0.65f // a frame where the wave is nicely visible
+        path(fill = SolidColor(color), fillAlpha = 0.9f) {
+            var x = IX + 1.5f
+            moveTo(x, surface(x, LEVEL, t).coerceAtLeast(IY + 1))
+            while (x < IX + IW - 1.5f) {
+                x += 0.5f
+                lineTo(x, surface(x, LEVEL, t).coerceAtLeast(IY + 1))
+            }
+            lineTo(IX + IW - 1.5f, IY + IH - 1.5f)
+            lineTo(IX + 1.5f, IY + IH - 1.5f)
+            close()
         }
-        // Screen, stand and base.
-        line(screen) { roundedRect(17f, 13f, 47f, 39f, 4f) }
-        line(screen) { moveTo(32f, 39f); lineTo(32f, 46f); moveTo(25f, 47f); lineTo(39f, 47f) }
-        // Face: two eyes and a smile, so it reads as friendly even at small sizes.
-        line(screen) { moveTo(27f, 23f); lineTo(27f, 23.5f); moveTo(37f, 23f); lineTo(37f, 23.5f) }
-        line(screen) { moveTo(26.5f, 29f); quadTo(32f, 34f, 37.5f, 29f) }
-        // Left arm: upper arm out to the elbow, forearm up, bicep bump on top, fist.
-        line(arms) {
-            moveTo(17f, 31f); lineTo(10f, 31f); quadTo(6f, 31f, 6f, 27f); lineTo(6f, 22f)
-            moveTo(17f, 27f); quadTo(13f, 22.5f, 9.5f, 25.5f)
-        }
-        path(fill = SolidColor(arms)) { circle(6f, 18.5f, 4f) }
-        // Right arm: mirror image.
-        line(arms) {
-            moveTo(47f, 31f); lineTo(54f, 31f); quadTo(58f, 31f, 58f, 27f); lineTo(58f, 22f)
-            moveTo(47f, 27f); quadTo(51f, 22.5f, 54.5f, 25.5f)
-        }
-        path(fill = SolidColor(arms)) { circle(58f, 18.5f, 4f) }
+        path(stroke = SolidColor(color), strokeLineWidth = 4f) { roundRect(6f, 18f, 51f, 46f, 7.5f) }
+        path(fill = SolidColor(color)) { roundRect(52.5f, 26.5f, 57.5f, 37.5f, 2.2f) }
     }.build()
-}
 
-/** The logo in the app's colors: brand green screen, warm white arms. */
-@Composable
-fun EnergyGuardLogo(modifier: Modifier = Modifier) {
-    val vector = remember { energyGuardLogo(screen = Warm.Brand, arms = Warm.Text) }
-    Image(rememberVectorPainter(vector), contentDescription = "EnergyGuard logo", modifier = modifier)
-}
-
-/** One stroked shape of the logo: same width, round caps and joins everywhere. */
-private fun ImageVector.Builder.line(color: Color, block: PathBuilder.() -> Unit) = path(
-    stroke = SolidColor(color), strokeLineWidth = 3.5f,
-    strokeLineCap = StrokeCap.Round, strokeLineJoin = StrokeJoin.Round, pathBuilder = block,
-)
-
-private fun PathBuilder.roundedRect(l: Float, t: Float, r: Float, b: Float, radius: Float) {
+private fun PathBuilder.roundRect(l: Float, t: Float, r: Float, b: Float, radius: Float) {
     moveTo(l + radius, t)
     lineTo(r - radius, t); quadTo(r, t, r, t + radius)
     lineTo(r, b - radius); quadTo(r, b, r - radius, b)
     lineTo(l + radius, b); quadTo(l, b, l, b - radius)
     lineTo(l, t + radius); quadTo(l, t, l + radius, t)
-    close()
-}
-
-private fun PathBuilder.circle(cx: Float, cy: Float, radius: Float) {
-    moveTo(cx - radius, cy)
-    arcTo(radius, radius, 0f, isMoreThanHalf = false, isPositiveArc = true, x1 = cx + radius, y1 = cy)
-    arcTo(radius, radius, 0f, isMoreThanHalf = false, isPositiveArc = true, x1 = cx - radius, y1 = cy)
     close()
 }

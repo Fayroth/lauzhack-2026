@@ -58,7 +58,7 @@ fun DashboardScreen(state: DashboardState) {
     Column(Modifier.fillMaxSize().background(moodBackground(state.fatigue)).padding(horizontal = 48.dp, vertical = 32.dp)) {
         // Header
         Row(verticalAlignment = Alignment.CenterVertically) {
-            EnergyGuardLogo(Modifier.size(48.dp))
+            EnergyGuardLogo(state.fatigue, Modifier.size(56.dp))
             Spacer(Modifier.width(16.dp))
             Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
             Spacer(Modifier.width(24.dp))
