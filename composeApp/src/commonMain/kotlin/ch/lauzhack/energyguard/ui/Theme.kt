@@ -8,7 +8,9 @@ import androidx.compose.ui.graphics.Color
  * but every step stays clearly distinct on a projector.
  */
 object Warm {
-    val Night = Color(0xFF1D1A2C)      // page background
+    val Night = Color(0xFF1D1A2C)      // page background (flat fallback)
+    val Mauve = Color(0xFF2A2140)      // background, gauge side (left)
+    val Deep = Color(0xFF16142A)       // background, tiles side (right)
     val Surface = Color(0xFF282439)    // cards
     val Track = Color(0xFF353049)      // empty part of the gauge / chart grid
     val Text = Color(0xFFF4EEE6)       // warm white

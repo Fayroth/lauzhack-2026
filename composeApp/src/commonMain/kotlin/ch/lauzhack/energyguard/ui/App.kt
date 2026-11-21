@@ -1,5 +1,7 @@
 package ch.lauzhack.energyguard.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -23,7 +25,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -49,7 +53,7 @@ fun App(state: DashboardState) {
 
 @Composable
 fun DashboardScreen(state: DashboardState) {
-    Column(Modifier.fillMaxSize().background(Warm.Night).padding(horizontal = 44.dp, vertical = 30.dp)) {
+    Column(Modifier.fillMaxSize().background(moodBackground(state.fatigue)).padding(horizontal = 44.dp, vertical = 30.dp)) {
         // Header
         Row(verticalAlignment = Alignment.Bottom) {
             Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
@@ -119,6 +123,18 @@ private fun rememberEnergyHistory(f: FatigueState): List<Int> {
         }
     }
     return history
+}
+
+/**
+ * Background that follows the energy, like WHOOP tints its screens by recovery: night mauve on the
+ * gauge side with a hint of the energy color (honey when fresh, rose when exhausted), fading to deep
+ * indigo behind the tiles. Kept subtle so text contrast holds on a projector; the tint eases in over 2 s.
+ */
+@Composable
+private fun moodBackground(f: FatigueState): Brush {
+    val target = if (f.calibrated) energyColor(f.energy) else Warm.Calm
+    val tint by animateColorAsState(target, tween(2000), label = "mood")
+    return Brush.horizontalGradient(listOf(lerp(Warm.Mauve, tint, 0.14f), Warm.Deep))
 }
 
 /** Seconds left in calibration, counted from the first time the dashboard is shown uncalibrated. */
