@@ -57,6 +57,7 @@ fun App(state: DashboardState) {
         Box(Modifier.fillMaxSize()) {
             DashboardScreen(state)
             key(state.runId) { BreakAlertOverlay(state.fatigue, state.coach, demo) } // F5 replay: fresh alert state
+            KssPrompt(state, demo)
         }
     }
 }
@@ -70,7 +71,7 @@ fun DashboardScreen(state: DashboardState) {
             Spacer(Modifier.width(16.dp))
             Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
             Spacer(Modifier.width(24.dp))
-            Text("Looking after your energy, quietly", fontSize = 21.sp, color = Warm.Muted)
+            SleepSlider()
             Spacer(Modifier.weight(1f))
             Text("Everything stays on this computer", fontSize = 18.sp, color = Warm.Brand)
             Spacer(Modifier.width(16.dp))
@@ -130,6 +131,7 @@ private fun GaugePanel(state: DashboardState) {
         Spacer(Modifier.width(16.dp))
         Text("energy\nlast 5 min", fontSize = 16.sp, color = Warm.Faint)
     }
+    KssSummary(Modifier.padding(top = 8.dp))
 }
 
 /** "last minute" (real engine, 60 s window) or "last 10 s" (demo mode). */
