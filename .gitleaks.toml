@@ -1,0 +1,9 @@
+# gitleaks config: all default rules, plus one narrow exception.
+# extension/manifest.json "key" is the Chrome extension's PUBLIC RSA key (pins the extension id, #43).
+# A public key is not a secret; only values starting with the RSA-2048 public-key (SPKI) header are allowed.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "RSA public keys (SubjectPublicKeyInfo, base64) are public by design"
+regexes = ['''^MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA[A-Za-z0-9+/]+=*$''']

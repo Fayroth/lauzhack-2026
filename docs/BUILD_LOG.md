@@ -25,6 +25,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 18:35 | Isma | Decision: LogiInsight RGB feeds issue #3; MediaPipe stays the fallback behind the same FrameSource interface. Pitch wording: "blinks and long closures are reliable, eyelid droop is detected as a trend, not instantly; accuracy drops when the head is turned". |
 
 | Sat 18:45 | Ali | Demo inbox (#13): `ui/DemoInbox.kt`, 4 emails (PayPal lookalike phishing, legit EPFL news, 2 fillers); every link click goes through `LocalGuard` → Allow = page opened, Warn = "Are you sure?" dialog, Block = full red screen with reason + signals. Opened as a second window from `main.kt` (same `LocalGuard`), at start in demo mode, F2 otherwise |
+| Sat 18:57 | Ali | Real-world guardrail (#43): Chrome MV3 extension (`extension/`, plain JS) intercepts cross-site link clicks (real href read before Gmail rewrites it, google.com/url unwrapped), asks the desktop app, shows Block / Warn overlays in a closed Shadow DOM, fails open in 300 ms. Local endpoint `POST 127.0.0.1:8766/guard` (Ktor CIO) runs the SAME guard function as the inbox (Guardrail + live fatigue + haptic on Block): loopback-only bind, pinned extension Origin + Host checks (no CORS, anti DNS-rebinding), input validation, logs only a counter; 7 tests incl. a real loopback server |
 
 ## Reused resources
 | Resource | Link | Used for |
@@ -46,4 +47,6 @@ novel relative to the resources it uses, and teams must make that explicit).
 | MX Master 4 WebHID haptics library (MIT) | https://github.com/mario-gutierrez/mx-master-4-webhid | Source of the haptic HID report bytes (0x11, 0x0B4E, effect id), ported to Kotlin in `MxMaster4HapticOutput` |
 | OpenRouter | https://openrouter.ai | LLM API for the EnergyCoach |
 | Claude Haiku 5.5 via OpenRouter (`anthropic/claude-haiku-5.5`) | https://openrouter.ai/anthropic/claude-haiku-5.5 | Small cheap model that writes the one-sentence coach message (override: `EG_COACH_MODEL`) |
+| Ktor server (core + CIO engine) | https://ktor.io/docs/server-create-and-configure.html | Local guard endpoint on 127.0.0.1 for the Chrome extension |
+| Chrome Extensions Manifest V3 (content scripts, service worker, `key` for a stable id) | https://developer.chrome.com/docs/extensions/mv3 | Real-world guardrail in Chrome / Gmail |
 | kotlinx-coroutines-test | https://github.com/Kotlin/kotlinx.coroutines | Virtual time in the EnergyCoach tests (timeout, rate limit) |

@@ -200,6 +200,35 @@ Demo phishing email (the one the tests use, copy it into the inbox):
 - Link text `https://www.paypal.com/signin`, href `https://paypa1-secure.com/signin`
 - → TIRED: **Block** · FRESH: Warn. A legit link (`https://actu.epfl.ch/news/`, text "EPFL news") → Allow at every level.
 
+### Local guard endpoint (desktop app ↔ Chrome extension, #43)
+The **same** `guard` function as `LocalGuard` (Guardrail + latest FatigueState + haptic WARNING on Block), exposed over HTTP
+so the Chrome extension in `extension/` protects real link clicks (incl. real Gmail). Server: Ktor CIO in `desktopMain/guard/`.
+
+`POST http://127.0.0.1:8766/guard` (port: `EG_GUARD_PORT`, default 8766), `Content-Type: application/json`
+```json
+{ "displayText": "https://www.paypal.com/signin", "href": "https://paypa1-secure.com/signin", "context": "" }
+```
+→ `200`
+```json
+{ "verdict": "block", "reason": "Blocked: this looks like phishing and your energy is low (38%). ...",
+  "signals": ["The link text says paypal.com but it actually goes to paypa1-secure.com", "..."], "level": "TIRED" }
+```
+- `verdict`: `"allow" | "warn" | "block"` (Verdict.Allow / Warn / Block). Allow → `reason = ""`, `signals = []`.
+- `level`: current `Level` name (`FRESH|OK|TIRED|EXHAUSTED`), informational.
+- Block → the MX Master 4 vibrates (WARNING), exactly like the inbox.
+
+Security (mandatory):
+- Bound to **127.0.0.1 only** (never 0.0.0.0). `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (anti DNS-rebinding).
+- `Origin` header must be exactly `chrome-extension://<id>`; id pinned by the `key` in `extension/manifest.json`
+  (default `mchiibilichfmibgecnoaheikiajhclo`, override with `EG_EXTENSION_ID`). Anything else → `403`. No CORS headers at all,
+  so web pages can never read the user's fatigue.
+- Input: body ≤ 16 KB (Content-Length required), JSON object with `displayText` ≤ 1000 chars, `href` ≤ 2048 chars and
+  starting with `http://` or `https://` (no whitespace/control chars), optional `context` ≤ 2000 chars. Otherwise `400`.
+  Wrong path → `404`, wrong method → `405`.
+- Stores and logs nothing but a request counter + the verdict (never the URL or text).
+- Extension side: **fail open**. No answer within 300 ms, app closed, or any non-200 → the link opens normally.
+- The extension sends only the link text + href (context `""`), only to 127.0.0.1. No page content, images or keystrokes.
+
 ## Sources (desktop)
 ```kotlin
 interface VisionSource { fun frames(): Flow<VisionFrame> }   // MockVisionSource, WebSocketVisionSource
