@@ -10,11 +10,11 @@ import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
-
 /** Stream of eye/face metrics (format: docs/API.md). */
 interface VisionSource {
     fun frames(): Flow<VisionFrame>
@@ -46,27 +46,63 @@ class MockVisionSource : VisionSource {
     }
 }
 
-/** Real client for the Python sidecar in vision/. Reconnects every 2 s if the sidecar is down. */
-class WebSocketVisionSource(private val url: String = "ws://localhost:8765") : VisionSource {
-    private val client = HttpClient(CIO) { install(WebSockets) }
-    private val json = Json { ignoreUnknownKeys = true }
+/**
+ * Real client for the Python sidecar in vision/. Never throws: if the sidecar is down or restarts,
+ * it logs and reconnects every [retryMs]; meanwhile the app runs on input only.
+ * Frames are re-stamped on arrival with [clock] (one time base for vision + input, see docs/API.md).
+ */
+class WebSocketVisionSource(
+    private val url: String = "ws://localhost:8765",
+    private val retryMs: Long = 2_000,
+    private val clock: () -> Long = System::currentTimeMillis,
+) : VisionSource {
+    private val client = HttpClient(CIO) {
+        install(WebSockets) { pingIntervalMillis = 2_000 } // detect a hung sidecar, not only a closed one
+    }
 
-    override fun frames(): Flow<VisionFrame> = channelFlow {
-        while (true) {
-            try {
-                client.webSocket(url) {
-                    println("[vision] connected to $url")
-                    for (frame in incoming) {
-                        if (frame !is Frame.Text) continue
-                        val parsed = runCatching { json.decodeFromString<VisionFrame>(frame.readText()) }
-                        parsed.onSuccess { if (it.type == "vision") send(it) }
-                            .onFailure { println("[vision] bad message: ${it.message}") }
-                    }
-                }
-            } catch (e: Exception) {
-                println("[vision] $url unavailable (${e.message}), retrying in 2 s")
+    override fun frames(): Flow<VisionFrame> = reconnecting(retryMs, ::println) { emit ->
+        client.webSocket(url) {
+            println("[vision] connected to $url")
+            for (frame in incoming) {
+                if (frame !is Frame.Text) continue
+                parseVisionMessage(frame.readText(), clock())?.let { emit(it) }
             }
-            delay(2000)
         }
+        println("[vision] $url closed the connection")
+    }
+}
+
+private val json = Json { ignoreUnknownKeys = true }
+
+/**
+ * Parses one sidecar message and stamps it with [arrivalTs] (epoch ms, same clock as input stats).
+ * The sidecar's own `ts` is ignored: it comes from another process/clock and is untrusted.
+ * Returns null for malformed or non-"vision" messages.
+ */
+internal fun parseVisionMessage(text: String, arrivalTs: Long): VisionFrame? =
+    runCatching { json.decodeFromString<VisionFrame>(text) }
+        .onFailure { println("[vision] bad message: ${it.message?.take(120)}") }
+        .getOrNull()
+        ?.takeIf { it.type == "vision" }
+        ?.copy(ts = arrivalTs)
+
+/**
+ * Runs [session] forever: when it ends or throws (connection refused, sidecar killed...), logs and retries
+ * after [retryMs]. Only cancellation of the collector stops it.
+ */
+internal fun <T> reconnecting(
+    retryMs: Long,
+    log: (String) -> Unit,
+    session: suspend (emit: suspend (T) -> Unit) -> Unit,
+): Flow<T> = channelFlow {
+    while (true) {
+        try {
+            session { send(it) }
+        } catch (e: Exception) {
+            // A ktor ping timeout can surface as a CancellationException: only stop if WE are cancelled.
+            ensureActive()
+            log("[vision] unavailable (${e.message ?: e::class.simpleName}), retrying in ${retryMs / 1000.0} s")
+        }
+        delay(retryMs)
     }
 }

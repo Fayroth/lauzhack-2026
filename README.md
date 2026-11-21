@@ -53,6 +53,10 @@ EG_INPUT=real ./gradlew :composeApp:run          # PowerShell: $env:EG_INPUT="re
 # macOS: allow the terminal/IDE in Privacy & Security > Accessibility + Input Monitoring, otherwise no events.
 # Windows: input inside elevated (admin) windows is not captured.
 
+# 5. Real MX Master 4 vibration (Bluetooth; Bolt untested) instead of the console mock
+EG_HAPTICS=mx ./gradlew :composeApp:run          # PowerShell: $env:EG_HAPTICS="mx"; .\gradlew.bat :composeApp:run
+# The mouse buzzes once at startup if it is found; otherwise you hear a beep.
+
 # Android companion (debug APK)
 ./gradlew :composeApp:assembleDebug
 ```

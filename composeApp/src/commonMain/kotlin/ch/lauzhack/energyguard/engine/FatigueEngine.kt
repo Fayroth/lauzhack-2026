@@ -165,6 +165,8 @@ class FatigueEngine(
         ema += alpha * (rawScore - ema)
         lastEmaTs = now
 
+        // Vision went silent (sidecar down) while eyes were closed: don't let input frames grow a fake micro-sleep.
+        if (lastVisionTs.let { it == null || now - it > MAX_VISION_GAP_MS }) eyesClosedSince = null
         val closedMs = eyesClosedSince?.let { now - it } ?: 0L
         val microSleep = closedMs > MICRO_SLEEP_MS
         if (microSleep) ema = max(ema, MICRO_SLEEP_SCORE)
@@ -209,7 +211,7 @@ class FatigueEngine(
         private const val MICRO_SLEEP_MS = 1_000L
         private const val MICRO_SLEEP_SCORE = 60.0
         private const val MAX_VISION_GAP_MS = 1_000L
-        private const val MAX_INPUT_GAP_MS = 2_000L
+        private const val MAX_INPUT_GAP_MS = 6_000L // > JNativeHookInputSource emit period (5 s)
         private const val VISION_ABSENT_MS = 5_000L
         private const val MIN_BASELINE_N = 3
         private const val MIN_MOUSE_PX = 100.0
