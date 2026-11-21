@@ -4,6 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import ch.lauzhack.energyguard.ui.components.DarkColors
+import ch.lauzhack.energyguard.ui.components.EgColors
+import ch.lauzhack.energyguard.ui.components.LightColors
 
 /** One full set of app colors. */
 data class Palette(
@@ -25,27 +28,20 @@ data class Palette(
 )
 
 /**
- * Dark "evening" palette: a soft indigo night instead of pure black, energy from sunlit honey (fresh)
- * to red (exhausted) instead of a traffic light.
+ * Dark palette, mapped onto the M2 design tokens (ui/components/Tokens.kt) so the break overlay, the inbox and the
+ * Android dashboard match the new shell: flat background, energy scale = level colors (green, teal, amber, red).
  */
-val EveningPalette = Palette(
-    night = Color(0xFF1D1A2C), mauve = Color(0xFF2A2140), deep = Color(0xFF16142A),
-    surface = Color(0xFF282439), track = Color(0xFF353049),
-    text = Color(0xFFF4EEE6), muted = Color(0xFFA9A3BD), faint = Color(0xFF6E6886),
-    honey = Color(0xFFF7C35F), apricot = Color(0xFFF29E5C), coral = Color(0xFFEE6F5E), rose = Color(0xFFE5484D),
-    sage = Color(0xFF93CFA0), calm = Color(0xFFA8B8F0), brand = Color(0xFF4CC38A),
-)
+val EveningPalette = DarkColors.toPalette(faint = Color(0xFF7A8292))
 
-/**
- * Light "health" palette (white with a hint of green). Same energy scale, darkened so every color
- * keeps >= 4:1 contrast on the white background (checked against WCAG; big text needs 3:1).
- */
-val DaylightPalette = Palette(
-    night = Color(0xFFF7FBF8), mauve = Color(0xFFEAF4EE), deep = Color(0xFFFAFCFB),
-    surface = Color(0xFFFFFFFF), track = Color(0xFFE3ECE6),
-    text = Color(0xFF1B2A22), muted = Color(0xFF55655C), faint = Color(0xFF6F7D75),
-    honey = Color(0xFFA86A00), apricot = Color(0xFFC2571A), coral = Color(0xFFC8402F), rose = Color(0xFFB3261E),
-    sage = Color(0xFF2B7A4B), calm = Color(0xFF3D57B8), brand = Color(0xFF1F7A47),
+/** Light palette, same mapping (state colors already darkened for contrast on white). */
+val DaylightPalette = LightColors.toPalette(faint = Color(0xFF6B7482))
+
+private fun EgColors.toPalette(faint: Color) = Palette(
+    night = background, mauve = background, deep = background,
+    surface = surface, track = track,
+    text = text, muted = muted, faint = faint,
+    honey = fresh, apricot = ok, coral = tired, rose = exhausted,
+    sage = fresh, calm = accent, brand = accent,
 )
 
 /**

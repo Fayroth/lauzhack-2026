@@ -61,7 +61,7 @@ EG_HAPTICS=mx ./gradlew :composeApp:run          # PowerShell: $env:EG_HAPTICS="
 EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; .\gradlew.bat :composeApp:run
 # Overrides EG_VISION / EG_INPUT (combine with EG_HAPTICS=mx for real vibration). F5 = restart the script.
 # A second window "EnergyGuard — Inbox" opens too (guardrail demo). Outside demo mode: F2 on the dashboard opens it.
-# A small "DEMO" marker is shown bottom-right.
+# A "DEMO" badge is shown in the header. Keys: 1 / 2 / 3 = Today / Journal / Profile tabs, F2 = inbox, F5 = replay.
 
 # 7. EnergyCoach (LLM): put OPENROUTER_API_KEY in .env (see .env.example). Without it -> offline templates.
 # Coach messages are printed as "[coach] ..." in the console. EG_COACH=offline forces templates, EG_COACH_MODEL=<id> changes the model.

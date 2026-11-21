@@ -1,34 +1,34 @@
 package ch.lauzhack.energyguard
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.energyguard.app.AppStore
 import ch.lauzhack.energyguard.app.InMemoryPersistence
+import ch.lauzhack.energyguard.app.ThemeMode
 import ch.lauzhack.energyguard.app.desktopPersistence
 import ch.lauzhack.energyguard.app.localDayKey
 import ch.lauzhack.energyguard.coach.desktopEnergyCoach
@@ -52,9 +52,12 @@ import ch.lauzhack.energyguard.input.JNativeHookInputSource
 import ch.lauzhack.energyguard.input.MockInputSource
 import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
-import ch.lauzhack.energyguard.ui.App
+import ch.lauzhack.energyguard.ui.BreakAlertOverlay
 import ch.lauzhack.energyguard.ui.DashboardState
 import ch.lauzhack.energyguard.ui.DemoInbox
+import ch.lauzhack.energyguard.ui.DesktopShell
+import ch.lauzhack.energyguard.ui.Tab
+import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.brand.energyGuardIcon
 import ch.lauzhack.energyguard.vision.MockVisionSource
 import ch.lauzhack.energyguard.vision.WebSocketVisionSource
@@ -79,7 +82,9 @@ private const val VISION_STALE_MS = 2_000L
  * Phone companion (#48, EG_COMPANION=1 only): read-only GET http://<LAN IP>:8767/state with a pairing code (companion/CompanionServer.kt),
  * fed a snapshot of the dashboard state after each recomposition. Off by default: nothing more listens.
  * App model (M1): AppStore (app/AppStore.kt) is fed the same events (engine, coach, guard blocks, 1 s tick) and persists
- * journal/settings/history in ~/.energyguard/ (in memory in demo mode). The current dashboard still renders DashboardState.
+ * journal/settings/history in ~/.energyguard/ (in memory in demo mode).
+ * UI (M2): DesktopShell (ui/DesktopShell.kt) renders AppStore.state only: rail Today / Journal / Profile (keys 1 / 2 / 3),
+ * theme = Settings.theme (header toggle -> store.updateSettings). Break alert overlay drawn on top, as before.
  */
 fun main() = application {
     val demo = remember { System.getenv("EG_DEMO") == "1" }
@@ -134,6 +139,8 @@ fun main() = application {
     }
 
     var showInbox by remember { mutableStateOf(demo) }
+    var tab by remember { mutableStateOf(Tab.TODAY) }
+    val appState by store.state.collectAsState()
 
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
@@ -182,16 +189,20 @@ fun main() = application {
             onCloseRequest = ::exitApplication,
             title = if (demo) "EnergyGuard (demo mode)" else "EnergyGuard",
             icon = rememberVectorPainter(remember { energyGuardIcon() }),
-            state = rememberWindowState(width = 1280.dp, height = 800.dp),
+            state = rememberWindowState(position = WindowPosition(Alignment.Center), size = defaultWindowSize()),
             onKeyEvent = {
-                if (demo && it.type == KeyEventType.KeyDown && it.key == Key.F5) {
-                    demoClock.restart(); demoRun++; store.resetRun(); true
-                } else if (it.type == KeyEventType.KeyDown && it.key == Key.F2) {
-                    showInbox = true; true
-                } else false
+                if (it.type != KeyEventType.KeyDown || it.isCtrlPressed || it.isAltPressed) return@Window false
+                when (it.key) {
+                    Key.F5 -> if (demo) { demoClock.restart(); demoRun++; store.resetRun(); true } else false
+                    Key.F2 -> { showInbox = true; true }
+                    Key.One, Key.NumPad1 -> { tab = Tab.TODAY; true }
+                    Key.Two, Key.NumPad2 -> { tab = Tab.JOURNAL; true }
+                    Key.Three, Key.NumPad3 -> { tab = Tab.PROFILE; true }
+                    else -> false
+                }
             },
         ) {
-            Box {
+            run {
                 val dashboard = DashboardState(
                     fatigue, lastVision, lastInput, coachMessage, llmCalls,
                     calibrationMs = if (demo) DemoScript.CALIBRATION_MS else FatigueEngine.DEFAULT_CALIBRATION_MS,
@@ -202,9 +213,19 @@ fun main() = application {
                     store.setDashboard(dashboard)
                     if (companion != null) companionSnapshot.set(store.state.value.toCompanionState(System.currentTimeMillis()))
                 }
-                App(dashboard)
-                companion?.let { Text(it.pairingLabel, Modifier.align(Alignment.BottomStart).padding(12.dp), fontSize = 16.sp, color = Color.Gray) }
-                if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
+                DesktopShell(
+                    state = appState,
+                    tab = tab,
+                    onTab = { tab = it },
+                    today = remember(store) { TodayActions(store::startBreak, store::endBreak, store::setSleepHours) },
+                    onToggleTheme = {
+                        store.updateSettings { s -> s.copy(theme = if (s.theme == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT) }
+                    },
+                    footer = companion?.pairingLabel,
+                ) {
+                    // Demo mode calibrates in 15 s: shorter alert escalation too. F5 replay: fresh alert state.
+                    key(demoRun) { BreakAlertOverlay(fatigue, coachMessage, demo) }
+                }
             }
         }
         if (showInbox) {
@@ -216,4 +237,10 @@ fun main() = application {
             ) { DemoInbox() }
         }
     }
+}
+
+/** 1440x900 (design size), shrunk to the usable screen (taskbar excluded) on small or scaled displays, e.g. 1920x1200 at 125 %. */
+private fun defaultWindowSize(): DpSize {
+    val screen = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds // in dp on Windows / macOS
+    return DpSize(minOf(1440, screen.width).dp, minOf(900, screen.height - 24).dp) // the UI scales to fit (DesktopShell)
 }
