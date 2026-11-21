@@ -11,7 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -42,4 +44,33 @@ fun energyColor(energy: Int): Color = when {
     energy >= 50 -> Color(0xFFCDDC39)
     energy >= 25 -> Color(0xFFFF9800)
     else -> Color(0xFFF44336)
+}
+
+/**
+ * Energy over time as a line, so the jury sees the drop happen instead of a number changing.
+ * [history] holds one energy value (0..100) per second, oldest first. The x axis is fixed to
+ * [capacity] samples so the line grows from the left, then scrolls.
+ */
+@Composable
+fun EnergyTrend(history: List<Int>, modifier: Modifier = Modifier, capacity: Int = 300) {
+    Canvas(modifier) {
+        val w = size.width
+        val h = size.height
+        // Background and threshold guides at 25 / 50 / 75 % energy.
+        drawRect(Color(0xFF1E1E1E))
+        listOf(25, 50, 75).forEach { e ->
+            val y = h * (1 - e / 100f)
+            drawLine(Color(0x22FFFFFF), Offset(0f, y), Offset(w, y), strokeWidth = 1.dp.toPx())
+        }
+        if (history.size < 2) return@Canvas
+        val step = w / (capacity - 1).coerceAtLeast(1)
+        val start = (capacity - history.size).coerceAtLeast(0) * step
+        val points = history.mapIndexed { i, e -> Offset(start + i * step, h * (1 - e.coerceIn(0, 100) / 100f)) }
+        val path = Path().apply {
+            moveTo(points.first().x, points.first().y)
+            points.drop(1).forEach { lineTo(it.x, it.y) }
+        }
+        drawPath(path, energyColor(history.last()), style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+        drawCircle(energyColor(history.last()), radius = 6.dp.toPx(), center = points.last())
+    }
 }

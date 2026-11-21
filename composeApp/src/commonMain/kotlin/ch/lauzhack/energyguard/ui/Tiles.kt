@@ -98,6 +98,8 @@ fun SignalTile(title: String, subtitle: String, metrics: List<Metric>, modifier:
             Spacer(Modifier.width(14.dp))
             Text(subtitle, fontSize = 18.sp, color = Color.Gray)
             Spacer(Modifier.weight(1f))
+            // Tiles show the live value; the gauge shows the last minute. Say so, or "red gauge + green tiles" looks like a bug.
+            Text("now ", fontSize = 16.sp, color = Color.Gray)
             Text(health.label.uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = health.color)
         }
         metrics.forEach { m ->

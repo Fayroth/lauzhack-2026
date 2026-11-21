@@ -19,6 +19,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,9 @@ import kotlin.time.TimeSource
 
 /** Must match FatigueEngine's default calibrationMs. Only used for the countdown text. */
 private const val CALIBRATION_SECONDS = 60
+
+/** 5 minutes of history at one sample per second. */
+private const val EnergyHistorySize = 300
 
 /** Root composable shared by Desktop and Android (owner: Mehdi). */
 @Composable
@@ -80,9 +84,10 @@ fun DashboardScreen(state: DashboardState) {
 
 @Composable
 private fun GaugePanel(f: FatigueState) {
+    val history = rememberEnergyHistory(f)
     if (!f.calibrated) {
         val secondsLeft = calibrationCountdown()
-        EnergyGauge(energy = 100, label = "Calibrating", size = 440.dp, calibrating = true)
+        EnergyGauge(energy = 100, label = "Calibrating", size = 360.dp, calibrating = true)
         Spacer(Modifier.height(20.dp))
         Text(
             "Learning your normal... ${secondsLeft}s",
@@ -91,12 +96,29 @@ private fun GaugePanel(f: FatigueState) {
         Text("Just work naturally", fontSize = 22.sp, color = Color.Gray)
         return
     }
-    EnergyGauge(f.energy, f.level.pretty(), size = 440.dp)
-    Spacer(Modifier.height(20.dp))
-    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = energyColor(f.energy), textAlign = TextAlign.Center)
+    EnergyGauge(f.energy, f.level.pretty(), size = 360.dp)
+    Text("over the last minute", fontSize = 16.sp, color = Color.Gray)
     Spacer(Modifier.height(8.dp))
+    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = energyColor(f.energy), textAlign = TextAlign.Center)
     // Top 3 reasons, so the jury sees WHY the gauge moved.
-    f.reasons.take(3).forEach { Text(it, fontSize = 24.sp, color = Color(0xFFFFB74D)) }
+    f.reasons.take(3).forEach { Text(it, fontSize = 22.sp, color = Color(0xFFFFB74D)) }
+    Spacer(Modifier.height(12.dp))
+    EnergyTrend(history, Modifier.width(420.dp).height(90.dp))
+    Text("energy, last 5 min", fontSize = 16.sp, color = Color.Gray)
+}
+
+/** Samples the energy once per second (after calibration) and keeps the last [EnergyHistorySize] values. */
+@Composable
+private fun rememberEnergyHistory(f: FatigueState): List<Int> {
+    val current by rememberUpdatedState(f)
+    var history by remember { mutableStateOf(listOf<Int>()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (current.calibrated) history = (history + current.energy).takeLast(EnergyHistorySize)
+            delay(1000)
+        }
+    }
+    return history
 }
 
 /** Seconds left in calibration, counted from the first time the dashboard is shown uncalibrated. */
