@@ -23,4 +23,8 @@ object Warm {
     val Rose = Color(0xFFE04E78)       // 0-25 %
     val Sage = Color(0xFF93CFA0)       // a signal that looks normal
     val Calm = Color(0xFFA8B8F0)       // calibration / informational
+
+    // Brand green: structure only (logo, header, buttons). Never used for an energy level, and
+    // deliberately more saturated than Sage so "brand" and "signal looks normal" never get confused.
+    val Brand = Color(0xFF4CC38A)
 }

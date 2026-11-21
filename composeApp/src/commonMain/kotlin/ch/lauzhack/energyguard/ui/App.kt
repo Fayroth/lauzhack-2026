@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.lauzhack.energyguard.model.FatigueState
+import ch.lauzhack.energyguard.ui.brand.EnergyGuardLogo
 import ch.lauzhack.energyguard.model.Level
 import kotlinx.coroutines.delay
 import kotlin.time.TimeSource
@@ -53,16 +55,18 @@ fun App(state: DashboardState) {
 
 @Composable
 fun DashboardScreen(state: DashboardState) {
-    Column(Modifier.fillMaxSize().background(moodBackground(state.fatigue)).padding(horizontal = 44.dp, vertical = 30.dp)) {
+    Column(Modifier.fillMaxSize().background(moodBackground(state.fatigue)).padding(horizontal = 48.dp, vertical = 32.dp)) {
         // Header
-        Row(verticalAlignment = Alignment.Bottom) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            EnergyGuardLogo(Modifier.size(48.dp))
+            Spacer(Modifier.width(16.dp))
             Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
-            Spacer(Modifier.width(20.dp))
+            Spacer(Modifier.width(24.dp))
             Text("Looking after your energy, quietly", fontSize = 21.sp, color = Warm.Muted)
             Spacer(Modifier.weight(1f))
-            Text("Everything stays on this computer", fontSize = 18.sp, color = Warm.Sage)
+            Text("Everything stays on this computer", fontSize = 18.sp, color = Warm.Brand)
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(24.dp))
 
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(40.dp)) {
             // Left: the gauge, what the jury looks at first.
@@ -92,10 +96,10 @@ private fun GaugePanel(f: FatigueState) {
     if (!f.calibrated) {
         val secondsLeft = calibrationCountdown()
         EnergyGauge(energy = 100, label = "Calibrating", size = 360.dp, calibrating = true)
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(24.dp))
         Text(
             "Getting to know you... ${secondsLeft} s",
-            fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Warm.Calm,
+            fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Warm.Calm,
         )
         Text("Just work as usual", fontSize = 22.sp, color = Warm.Muted)
         return
@@ -103,10 +107,10 @@ private fun GaugePanel(f: FatigueState) {
     EnergyGauge(f.energy, f.level.pretty(), size = 360.dp)
     Text("over the last minute", fontSize = 16.sp, color = Warm.Faint)
     Spacer(Modifier.height(8.dp))
-    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = energyColor(f.energy), textAlign = TextAlign.Center)
+    Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = energyColor(f.energy), textAlign = TextAlign.Center)
     // Top 3 reasons, so the jury sees WHY the gauge moved.
     f.reasons.take(3).forEach { Text(it, fontSize = 21.sp, color = Warm.Muted) }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(16.dp))
     EnergyTrend(history, Modifier.width(420.dp).height(90.dp))
     Text("your energy, last 5 minutes", fontSize = 16.sp, color = Warm.Faint)
 }

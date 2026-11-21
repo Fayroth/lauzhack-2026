@@ -83,25 +83,25 @@ fun keyboardMetrics(i: InputStats?): List<Metric> {
 @Composable
 fun SignalTile(title: String, subtitle: String, metrics: List<Metric>, modifier: Modifier = Modifier) {
     val health = worst(metrics)
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(24.dp)
     Column(
         modifier
             .background(Warm.Surface, shape)
             // A whisper of the signal's color in the card itself, instead of a hard outline.
             .background(health.color.copy(alpha = if (health == SignalHealth.GOOD || health == SignalHealth.NONE) 0.04f else 0.10f), shape)
-            .padding(horizontal = 28.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(16.dp))
             Text(subtitle, fontSize = 17.sp, color = Warm.Muted)
             Spacer(Modifier.weight(1f))
             // Tiles show the live value; the gauge shows the last minute. Say so, or "low gauge + calm tiles" looks like a bug.
             Text("now", fontSize = 16.sp, color = Warm.Faint)
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
             Row(
-                Modifier.background(health.color.copy(alpha = 0.16f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 5.dp),
+                Modifier.background(health.color.copy(alpha = 0.16f), RoundedCornerShape(50)).padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.size(10.dp).background(health.color, CircleShape))

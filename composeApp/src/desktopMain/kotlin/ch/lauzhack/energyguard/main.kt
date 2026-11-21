@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -25,6 +26,8 @@ import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.App
 import ch.lauzhack.energyguard.ui.DashboardState
+import ch.lauzhack.energyguard.ui.Warm
+import ch.lauzhack.energyguard.ui.brand.energyGuardLogo
 import ch.lauzhack.energyguard.vision.MockVisionSource
 import ch.lauzhack.energyguard.vision.WebSocketVisionSource
 import kotlinx.coroutines.delay
@@ -89,6 +92,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "EnergyGuard",
+        icon = rememberVectorPainter(remember { energyGuardLogo(Warm.Brand, Warm.Text, background = Warm.Night) }),
         state = rememberWindowState(width = 1280.dp, height = 800.dp),
     ) {
         CompositionLocalProvider(LocalGuard provides guard) {
