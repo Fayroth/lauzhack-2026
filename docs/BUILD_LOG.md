@@ -21,3 +21,9 @@ novel relative to the resources it uses, and teams must make that explicit).
 | MediaPipe Face Mesh | https://github.com/google-ai-edge/mediapipe | Face landmarks for EAR/PERCLOS/blinks |
 | OpenCV (opencv-python) | https://opencv.org | Webcam capture |
 | websockets (Python) | https://github.com/python-websockets/websockets | Sidecar WebSocket server |
+| LogiInsight Python SDK (v1.5.2, MIT) | https://logitech.github.io/hackathons/logiinsight/ | On-device face mesh, RGB + IR streams of the prototype webcam |
+| Logi Gaze Tracker | https://logitech.github.io/hackathons/logi-gaze-tracker/setup/ | Gaze on/off screen |
+| Logi Hands Tracker | https://logitech.github.io/hackathons/logi-hands-tracker/ | Eye rubbing, head on hand |
+| Logi Actions SDK (haptics) | https://logitech.github.io/actions-sdk-docs/ | MX Master 4 haptic feedback |
+| MX Master 4 WebHID haptics library | https://github.com/mario-gutierrez/mx-master-4-webhid | MX Master 4 haptics (alternative path) |
+| OpenRouter | https://openrouter.ai | LLM API for the EnergyCoach |

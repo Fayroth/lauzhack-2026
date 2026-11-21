@@ -23,6 +23,11 @@ If the user asks for a new feature after the freeze, remind them of the freeze b
   3. The MX Master 4 vibrates gently + suggestion "5-min break" on screen.
   4. Guardrail: while the gauge is low, he clicks a phishing link in our demo inbox → blocked with a clear warning + haptic pulse. "Tired humans click on phishing: we raise the guard exactly when you lower yours."
   5. Frugality counter: "all signals computed locally, 1 LLM call per hour, 0 images leave the PC".
+- **AI story (3 layers, say it this way to the jury):**
+  1. **Perception on Logitech hardware:** LogiInsight Python SDK (on-device face mesh, RGB + IR streams), Logi Gaze Tracker, Logi Hands Tracker. MediaPipe is only the fallback, behind the same interface.
+  2. **Personalized, explainable fusion** in `commonMain` (`FatigueEngine`): personal baseline, weighted score, human-readable `reasons`.
+  3. **Frugal generative coach** (`EnergyCoach`, via OpenRouter): one short personalized intervention, only on level transitions, max 1 call / 10 min, numbers only, offline template fallback.
+  Reference for all Logitech SDKs: https://logitech.github.io/hackathons/
 
 ### Scope — be ruthless, we have ~20 h
 - **P0 (must work by Sat 20:00):** webcam eye metrics (EAR, blinks, PERCLOS) + mouse metrics → fatigue score with personal baseline → desktop dashboard with live gauge → haptic alert.
@@ -32,9 +37,9 @@ If the user asks for a new feature after the freeze, remind them of the freeze b
 
 ### Stack & architecture
 - **Desktop app first:** Kotlin Multiplatform + Compose Multiplatform (Desktop/JVM target). Second target (Android) added later for the JetBrains "2 platforms" requirement — keep logic in `commonMain` so it is cheap.
-- **`commonMain` (shared, the brain):** data models (`SensorFrame`, `InputStats`), `FatigueEngine` (baseline calibration during the first ~60 s, rolling windows, weighted score 0–100), `Guardrail` rules, LLM client via Ktor (P2).
+- **`commonMain` (shared, the brain):** data models (`SensorFrame`, `InputStats`), `FatigueEngine` (baseline calibration during the first ~60 s, rolling windows, weighted score 0–100), `Guardrail` rules, `coach` (EnergyCoach: LLM client via Ktor to OpenRouter, rate-limited, template fallback; contract in `docs/API.md`).
 - **`desktopMain`:** global mouse/keyboard collectors (JNativeHook), WebSocket client to the vision sidecar, haptic bridge to the MX Master 4, Compose UI (dashboard, gauge, alert overlay, demo inbox).
-- **Vision sidecar (Python, `vision/`):** webcam / prototype IR → MediaPipe Face Mesh → EAR, blink duration/rate, PERCLOS, yawn (mouth ratio), head pose → JSON over WebSocket `ws://localhost:8765` at ~10 Hz. Rationale: MediaPipe and the prototype SDK are easiest from Python; the Kotlin app stays clean. Contract in `docs/API.md`.
+- **Vision sidecar (Python, `vision/`):** LogiInsight Python SDK face mesh on the prototype's RGB / IR streams (MediaPipe Face Mesh as fallback on any webcam, behind the same interface) + Logi Gaze Tracker + Logi Hands Tracker → EAR, blink duration/rate, PERCLOS, yawn (mouth ratio), head pose, gaze, hands → JSON over WebSocket `ws://localhost:8765` at ~10 Hz. Rationale: the Logitech SDKs and MediaPipe are easiest from Python; the Kotlin app stays clean. Contract in `docs/API.md`, SDKs at https://logitech.github.io/hackathons/.
 - **Privacy & security by design:** no image or audio is ever stored or sent; only numeric features leave the sidecar. No keystroke content is ever recorded. API keys only in `.env`.
 - Hardware SDK details (prototype IR access, MX Master 4 haptics API) are unknown at start: isolate them behind small interfaces (`HapticOutput`, `FrameSource`) with a mock implementation, so nobody is blocked.
 

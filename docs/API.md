@@ -18,14 +18,33 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
   "yawn": false,
   "headPitch": -4.0,
   "headYaw": 2.5,
-  "source": "webcam"
+  "source": "logiinsight-rgb",
+
+  "gazeOnScreen": true,
+  "gazeX": 0.42,
+  "gazeY": 0.61,
+  "offScreenRatio": 0.08,
+
+  "handNearEyes": false,
+  "headOnHand": false
 }
 ```
 - `ear`: eye aspect ratio (avg of both eyes), `eyesClosed`: ear below calibrated threshold.
 - `blinkCount`: blinks in the last 60 s, `lastBlinkMs`: duration of the last blink.
 - `perclos`: fraction of the last 60 s with eyes >= 80 % closed.
-- `source`: `"webcam"` or `"ir"` (prototype).
+- `source`: which perception path produced the eye metrics:
+  `"logiinsight-rgb"` (LogiInsight SDK face mesh on the RGB stream), `"logiinsight-ir"` (same on the IR stream: low light / glasses),
+  `"mediapipe"` (fallback on any webcam). Mocks/fakes may send `"mock"`; older stubs may still send `"webcam"`.
 - `face=false` → other fields may be absent.
+
+**Optional fields (added for the Logitech AI layers, all may be absent; consumers must handle null):**
+- Gaze, from Logi Gaze Tracker:
+  - `gazeOnScreen` (bool): gaze currently on the screen.
+  - `gazeX`, `gazeY` (0..1): normalized gaze point on the screen (0,0 = top-left).
+  - `offScreenRatio` (0..1): fraction of the last 60 s with gaze off screen.
+- Hands, from Logi Hands Tracker:
+  - `handNearEyes` (bool): a hand is near the eyes (eye rubbing).
+  - `headOnHand` (bool): head resting on a hand.
 - Kotlin mirror: `VisionFrame` in `composeApp/src/commonMain/.../model/Models.kt` (unknown fields are ignored).
 
 ## Input stats (desktop, in-process, Kotlin)
@@ -51,6 +70,32 @@ data class FatigueState(
     val calibrated: Boolean,
 )
 ```
+
+## EnergyCoach (commonMain)
+Frugal generative layer: turns the fusion result into one short, personalized intervention.
+LLM via OpenRouter (Ktor client, key `OPENROUTER_API_KEY` in `.env` only).
+
+```kotlin
+data class CoachInput(
+    val state: FatigueState,       // score, level, reasons
+    val previousLevel: Level,      // the transition that triggered the call
+    val sleepPriorHours: Double?,  // from the "sleep last night" slider or Health Connect (null if unknown)
+    val localTime: String,         // "HH:mm", local
+)
+data class CoachMessage(
+    val text: String,              // one short intervention, e.g. "Eyes closing +40% at 16:20: 5-min walk, then the hard email."
+    val fromLlm: Boolean,          // false = offline template fallback
+)
+interface EnergyCoach {
+    suspend fun advise(input: CoachInput): CoachMessage
+    val llmCallCount: StateFlow<Int>   // shown by the frugality counter
+}
+```
+Rules:
+- Called ONLY on level transitions (e.g. OK → TIRED), never on every frame.
+- At most 1 LLM call per 10 min. Inside that window, or on any error/timeout/no key → offline template (`fromLlm = false`).
+- The prompt contains numbers and short reason strings only: never images, audio, or keystroke content.
+- Every real LLM call increments `llmCallCount`.
 
 ## Haptics (desktop)
 ```kotlin
