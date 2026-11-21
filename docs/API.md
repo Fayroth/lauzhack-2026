@@ -106,6 +106,12 @@ How the UI should use them (owner: Mehdi):
 - Per-run state: key it on the run, e.g. `remember(state.runId) { ... }` for the 5-min trend history
   (and the countdown start mark), so F5 clears the old curve instead of drawing a jump to 100%.
 
+### Sleep prior (#15, `model/SleepPrior.kt`)
+`SleepPrior.hours` (default 7.0, set by the "Slept" slider in the dashboard header, range 3–9 h) shifts the
+fatigue score **after** EMA smoothing and **before** the levels: `SleepPrior.penalty()` = `round((7 - hours) * 5)`
+clamped to **-5..+20** points (5 h → +10, 3 h → +20, 8 h → -5). When the penalty is ≥ 5, the engine adds the
+reason `short night (N h)`. Shared object, no new parameter: the UI writes it, the engine reads it on every frame.
+
 ## EnergyCoach (commonMain)
 Frugal generative layer: turns the fusion result into one short, personalized intervention.
 LLM via OpenRouter (Ktor client, key `OPENROUTER_API_KEY` in `.env` only).

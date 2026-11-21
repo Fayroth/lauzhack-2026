@@ -70,7 +70,7 @@ fun DashboardScreen(state: DashboardState) {
             Spacer(Modifier.width(16.dp))
             Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
             Spacer(Modifier.width(24.dp))
-            Text("Looking after your energy, quietly", fontSize = 21.sp, color = Warm.Muted)
+            SleepSlider()
             Spacer(Modifier.weight(1f))
             Text("Everything stays on this computer", fontSize = 18.sp, color = Warm.Brand)
             Spacer(Modifier.width(16.dp))
