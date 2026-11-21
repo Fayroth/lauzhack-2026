@@ -65,6 +65,7 @@ unless the demo depends on it. Prefer boring, well-known libraries we can debug 
 - Contracts between parts (API routes, JSON shapes, shared Kotlin interfaces) live in `docs/API.md`. Update it BEFORE changing an interface, and tell the user to warn the teammate who depends on it.
 - Commit messages: short, imperative (`add link reputation check`). Never force-push `main`, never rewrite shared history.
 - Reviews: CODEOWNERS requests the whole team; a quick look is welcome but don't block on it, CI is the gate.
+- Merging: the author squash-merges their own PR once CI is green. If the PR touches another teammate's folder, that teammate gives a quick approval first.
 
 ## Security & secrets (we're a cybersecurity team — no embarrassing leaks)
 - API keys go in `.env` only (git-ignored). Keep `.env.example` updated with the variable NAMES.
