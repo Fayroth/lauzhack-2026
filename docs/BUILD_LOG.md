@@ -12,6 +12,7 @@ novel relative to the resources it uses, and teams must make that explicit).
 | Sat 15:45 | Zyad | Real mouse/keyboard collector (`JNativeHookInputSource` + pure `InputStatsCalculator`): overshoot ratio before clicks, shake jitter (direction reversals/s), typing rhythm and backspace ratio over a 30 s window — timestamps only, never key contents. Unit tests in `desktopTest` |
 | Sat 16:00 | Ali | Pipeline wired end to end: vision (mock / sidecar) + input → FatigueEngine → UI + haptics. One clock (WS frames stamped on arrival), auto-reconnect that survives sidecar down/restart, no fake micro-sleep when the sidecar dies mid-blink, haptic trigger (upward transitions, 2-min cooldown); tests |
 | Sat 16:30 | Zyad | Fix input-only calibration with the real 5 s input cadence (was 150 s instead of 60 s) + regression test |
+| Sat 16:38 | Ali | Guardrail "double vigilance": deterministic phishing checks (text/href mismatch, lookalike brands with 0→o / rn→m, punycode, raw IP, user@host trick, urgency words, shorteners, cheap TLDs); strong signals block when TIRED and only warn when FRESH; plain-words reasons; `LocalGuard` for the UI + haptic WARNING on block; 8 unit tests |
 | Sat 17:30 | Zyad | Real MX Master 4 haptics (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): HID report ported from the WebHID library to Kotlin/hid4java, opens the vendor HID collection over Bluetooth, background thread, falls back to console + beep if the mouse is absent; TIRED = gentle pulse, EXHAUSTED = warning pulse |
 
 ## Reused resources
