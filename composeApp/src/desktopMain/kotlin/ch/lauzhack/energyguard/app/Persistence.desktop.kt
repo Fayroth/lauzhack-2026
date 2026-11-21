@@ -12,6 +12,9 @@ actual fun textFilesIn(dir: String): TextFiles = DesktopTextFiles(File(dir))
 actual fun localDayKey(epochMs: Long): String =
     Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalDate().toString()
 
+actual fun localClockTime(epochMs: Long): String =
+    Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalTime().let { String.format(java.util.Locale.ROOT, "%02d:%02d", it.hour, it.minute) }
+
 /** Desktop store: `~/.energyguard/` (journal, settings, history). Local only. */
 fun desktopPersistence(): AppPersistence =
     JsonFilePersistence(textFilesIn(File(System.getProperty("user.home"), ".energyguard").path))

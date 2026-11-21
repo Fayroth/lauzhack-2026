@@ -154,7 +154,9 @@ data class CoachInput(
     val sleepPriorHours: Double?,  // from the "sleep last night" slider or Health Connect (null if unknown)
     val localTime: String,         // "HH:mm", local
     val minutesSinceBreak: Int? = null, // since session start or the last recovery (null if unknown)
+    val checkIn: CoachCheckIn? = null,  // M4: latest journal check-in of today, numbers only
 )
+data class CoachCheckIn(val kss: Int?, val stress: Int?, val caffeine: Int?) // no text field: the note can't get in
 enum class Intervention { BREAK, STAND_UP, RECOVERED }  // BREAK = eyes off screen 5 min, STAND_UP = stand up / walk a bit
 data class CoachMessage(
     val text: String,              // one short intervention, e.g. "Eyes closing +40% at 16:20: 5-min walk, then the hard email."
@@ -167,8 +169,8 @@ interface EnergyCoach {
 }
 ```
 Implementation: `FrugalEnergyCoach(llm: LlmClient?)` in `coach/EnergyCoach.kt` (`llm = null` → templates only).
-- `suspend fun onFatigue(state, localTime, sleepPriorHours = null, minutesSinceBreak = null): CoachMessage?` — the shells pass
-  `SleepPrior.hours` and `AppStore` `currentFocusMs / 60 000` (real breaks reset it); feed every state; it tracks the
+- `suspend fun onFatigue(state, localTime, sleepPriorHours = null, minutesSinceBreak = null, checkIn = null): CoachMessage?` — the shells pass
+  `SleepPrior.hours` and `AppStore` `currentFocusMs / 60 000` (real breaks reset it) and `store.coachCheckIn()` (M4); feed every state; it tracks the
   previous level itself and returns `null` unless the level changed **and** TIRED/EXHAUSTED is involved (FRESH ↔ OK is silent,
   so the LLM budget is kept for the moments that matter). `reset()` forgets the level (demo F5), never the rate limit or counter.
 - `val lastMessage: StateFlow<CoachMessage?>` + `val llmCallCount: StateFlow<Int>` → `DashboardState.coach` / `DashboardState.llmCallCount`
@@ -180,6 +182,8 @@ Rules:
 - Called ONLY on level transitions (e.g. OK → TIRED), never on every frame.
 - At most 1 LLM call per 10 min. Inside that window, or on any error/timeout/no key → offline template (`fromLlm = false`).
 - The prompt contains numbers and short reason strings only: never images, audio, or keystroke content.
+- Journal (M4): only `AppStore.coachCheckIn()` = KSS / stress / caffeine of today's latest check-in with any of them
+  (prompt lines `sleepiness (KSS 1-9)`, `stress (1-5)`, `caffeine today`). **Never** the private note.
 - Every real LLM call that returned a message increments `llmCallCount` (a failed attempt still uses the 10-min slot).
 - Reason strings are filtered to the engine's vocabulary (lowercase words, numbers, `%`, `+`, `-`, `.`, max 40 chars, top 3).
 
@@ -363,7 +367,8 @@ class AppStore(clock: () -> Long, dayKey: (Long) -> String, persistence: AppPers
     fun tick(now: Long = clock())      // every ~1 s: battery, focus time, auto-break, day rollover, autosave
     // user actions
     fun startBreak(); fun endBreak()
-    fun addJournalEntry(kss: Int?, stress: Int?, caffeine: Int?, note: String?): JournalEntry?
+    fun addJournalEntry(kss: Int?, stress: Int?, caffeine: Int?, note: String?, concentration: Int? = null): JournalEntry?
+    fun coachCheckIn(): CoachCheckIn?  // M4: today's latest check-in as numbers only (for EnergyCoach)
     fun deleteJournalEntry(id: Long)
     fun updateSettings(transform: (Settings) -> Settings); fun setSleepHours(hours: Double)
     fun resetRun()                     // demo F5: battery + today's counters from zero (LLM count stays real)
@@ -431,6 +436,10 @@ data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Bool
 ```
 - Invalid journal values (KSS outside 1..9, stress outside 1..5, caffeine outside 0..20) are dropped (`null`); an entry
   with nothing in it is rejected (`addJournalEntry` returns `null`).
+- `concentration` (M4): the value to record with the entry; `null` = the store's own. The phone passes the PC's live
+  value while paired (its own engine is idle then). Phone entries stay on the phone: the companion stays read-only.
+- Journal tab (M4, `ui/journal/JournalScreen.kt`, both shells): history "You said 7/9 · we measured 68";
+  Pearson r between KSS and our fatigue score (`100 - concentration`) shown only from 10 entries with a KSS.
 - `sleepHours` (3..9) is synced with `SleepPrior.hours` (the header slider) on every `tick`; at start it is restored only
   if `sleepDay` is today (yesterday's night is not tonight's).
 - `theme`, `hapticsOn`, `coachOnline` are stored for M2; `hapticsOn = false` already mutes haptics on desktop.

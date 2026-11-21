@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
@@ -24,13 +25,13 @@ import ch.lauzhack.energyguard.app.AppState
 import ch.lauzhack.energyguard.ui.Tab
 import ch.lauzhack.energyguard.ui.brand.EnergyGuardLogo
 import ch.lauzhack.energyguard.ui.components.Eg
-import ch.lauzhack.energyguard.ui.components.EgIcon
 import ch.lauzhack.energyguard.ui.components.EgSpace
 import ch.lauzhack.energyguard.ui.components.EgTheme
 import ch.lauzhack.energyguard.ui.components.EgType
 import ch.lauzhack.energyguard.ui.components.Icon
 import ch.lauzhack.energyguard.ui.components.Pill
-import ch.lauzhack.energyguard.ui.components.PlaceholderScreen
+import ch.lauzhack.energyguard.ui.journal.JournalActions
+import ch.lauzhack.energyguard.ui.journal.JournalScreen
 import ch.lauzhack.energyguard.ui.today.SignalsSnapshot
 import ch.lauzhack.energyguard.ui.today.TodayActions
 
@@ -58,6 +59,7 @@ fun PhoneShell(
     today: TodayActions,
     onReplay: () -> Unit,
     notice: String? = null,
+    journal: JournalActions = JournalActions(),
     profile: @Composable () -> Unit,
 ) {
     EgTheme(state.settings.theme) {
@@ -71,11 +73,8 @@ fun PhoneShell(
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (tab) {
                     Tab.TODAY -> PhoneTodayScreen(state, signals, link, today, onReplay, onConnect = { onTab(Tab.PROFILE) }, notice = notice)
-                    Tab.JOURNAL -> PlaceholderScreen(
-                        EgIcon.JOURNAL, "Journal",
-                        "Quick check-ins (sleepiness, stress, coffee) next to your measured concentration.",
-                        Modifier.padding(EgSpace.s), minWidth = 0.dp,
-                    )
+                    // Entries live on the phone (its own AppStore); the PC companion stays read-only.
+                    Tab.JOURNAL -> JournalScreen(state, journal, wide = false, Modifier.imePadding(), savedLabel = "Saved on this phone")
                     Tab.PROFILE -> profile()
                 }
             }

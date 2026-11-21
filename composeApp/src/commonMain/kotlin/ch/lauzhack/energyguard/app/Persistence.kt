@@ -46,6 +46,9 @@ expect fun textFilesIn(dir: String): TextFiles
 /** "YYYY-MM-DD" in the device's local time zone. */
 expect fun localDayKey(epochMs: Long): String
 
+/** Local "HH:mm" of an epoch ms (journal history). */
+expect fun localClockTime(epochMs: Long): String
+
 @Serializable private data class SettingsFile(val version: Int = 1, val settings: Settings = Settings())
 @Serializable private data class JournalFile(val version: Int = 1, val entries: List<JournalEntry> = emptyList())
 @Serializable private data class HistoryFile(val version: Int = 1, val days: List<DaySummary> = emptyList())

@@ -127,7 +127,7 @@ private fun PairingForm(
         Text("Connect to my PC", style = EgType.title, color = c.text)
         Spacer(Modifier.height(EgSpace.xs))
         Text(
-            "Same Wi-Fi as the PC (e.g. this phone's hotspot). Start the PC app with EG_COMPANION=1 and type what it shows at the bottom.",
+            "Same Wi-Fi as the PC (e.g. this phone's hotspot). On your PC, turn on phone sharing and type the address and code shown at the bottom.",
             style = EgType.body, color = c.muted,
         )
         if (invalid) {

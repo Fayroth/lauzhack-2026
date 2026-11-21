@@ -1,5 +1,6 @@
 package ch.lauzhack.energyguard.app
 
+import ch.lauzhack.energyguard.coach.CoachCheckIn
 import ch.lauzhack.energyguard.coach.CoachMessage
 import ch.lauzhack.energyguard.coach.Intervention
 import ch.lauzhack.energyguard.engine.BaselineSummary
@@ -122,6 +123,32 @@ class AppStoreTest {
         store.deleteJournalEntry(e.id)
         assertEquals(listOf(second.id), store.state.value.journal.map { it.id })
         assertEquals(1000, store.addJournalEntry(note = "x".repeat(5000))!!.note!!.length)
+    }
+
+    @Test fun checkInMovesRecovery() {
+        val store = clock.store()
+        store.setSleepHours(6.0) // sleep 67 (4-7 h), breaks 100 (none needed) -> 62.5 / 37.5 weights
+        val before = store.state.value.recovery
+        assertEquals(79, before)
+        store.addJournalEntry(kss = 9, stress = 5) // check-in component 0 -> 50 % / 30 % / 20 %
+        assertEquals(63, store.state.value.recovery)
+        store.addJournalEntry(kss = 1) // the latest one counts: component 100
+        assertEquals(83, store.state.value.recovery)
+        store.addJournalEntry(caffeine = 2) // no KSS / stress: the previous check-in still counts
+        assertEquals(83, store.state.value.recovery)
+    }
+
+    @Test fun concentrationOverrideAndCoachNumbers() {
+        val store = clock.store()
+        store.onFatigue(FatigueState(30, Level.OK, emptyList(), true), clock.now)
+        assertNull(store.coachCheckIn(), "no check-in yet")
+        assertEquals(41, store.addJournalEntry(kss = 6, concentration = 41)!!.concentration, "phone: the PC's value")
+        assertEquals(100, store.addJournalEntry(stress = 2, concentration = 140)!!.concentration, "clamped")
+        store.addJournalEntry(note = "only words")
+        assertEquals(CoachCheckIn(kss = null, stress = 2, caffeine = null), store.coachCheckIn(), "latest with numbers, never the note")
+        clock.now += DAY
+        store.tick(clock.now)
+        assertNull(store.coachCheckIn(), "yesterday's check-in is not today's")
     }
 
     @Test fun settingsAndBaseline() {
