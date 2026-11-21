@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import ch.lauzhack.energyguard.coach.desktopEnergyCoach
+import ch.lauzhack.energyguard.coach.localTimeHHmm
 import ch.lauzhack.energyguard.demo.DemoClock
 import ch.lauzhack.energyguard.demo.DemoScript
 import ch.lauzhack.energyguard.engine.FatigueEngine
@@ -55,6 +57,7 @@ private const val VISION_STALE_MS = 2_000L
  * One clock: every timestamp fed to the engine is System.currentTimeMillis() (WS frames are stamped on arrival).
  * All collection runs on the Compose main thread, so the (non-thread-safe) engine sees one caller.
  * Haptics: console mock by default, real MX Master 4 vibration with env var EG_HAPTICS=mx.
+ * Coach: EnergyCoach on level changes (OpenRouter if OPENROUTER_API_KEY is set, else offline templates; EG_COACH=offline forces templates).
  * Demo mode (EG_DEMO=1): scripted fatigue ramp into the same engine (demo/DemoMode.kt), F5 replays it, "DEMO" marker.
  */
 fun main() = application {
@@ -75,6 +78,7 @@ fun main() = application {
         if (System.getenv("EG_HAPTICS") == "mx") MxMaster4HapticOutput().also { it.pulse(HapticPattern.GENTLE) } // startup pulse = "mouse connected"
         else MockHapticOutput()
     }
+    val coach = remember { desktopEnergyCoach() } // not keyed on demoRun: the rate limit and the call counter stay real
     val guardrail = remember { Guardrail() }
     // UI calls LocalGuard.current(action): checked against the latest fatigue, mouse vibrates on every Block.
     val guard: (GuardedAction) -> Verdict = remember(engine) {
@@ -86,6 +90,8 @@ fun main() = application {
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
     val fatigue by engine.state.collectAsState()
+    val coachMessage by coach.lastMessage.collectAsState()
+    val llmCalls by coach.llmCallCount.collectAsState()
 
     LaunchedEffect(vision, engine) {
         vision.frames()
@@ -107,6 +113,13 @@ fun main() = application {
         hapticTrigger.onLevel(fatigue.level, System.currentTimeMillis())?.let { haptics.pulse(it) }
     }
 
+    LaunchedEffect(engine) { // sequential collect: an in-flight LLM call (<= 5 s, off the UI thread) is never cancelled
+        coach.reset()
+        engine.state.collect { s ->
+            coach.onFatigue(s, localTimeHHmm())?.let { println("[coach] ${if (it.fromLlm) "llm" else "template"} ${it.kind}: ${it.text}") }
+        }
+    }
+
     Window(
         onCloseRequest = ::exitApplication,
         title = if (demo) "EnergyGuard (demo mode)" else "EnergyGuard",
@@ -120,7 +133,7 @@ fun main() = application {
     ) {
         CompositionLocalProvider(LocalGuard provides guard) {
             Box {
-                App(DashboardState(fatigue, lastVision, lastInput))
+                App(DashboardState(fatigue, lastVision, lastInput, coachMessage, llmCalls))
                 if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
             }
         }

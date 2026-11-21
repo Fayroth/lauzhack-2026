@@ -103,21 +103,34 @@ data class CoachInput(
     val previousLevel: Level,      // the transition that triggered the call
     val sleepPriorHours: Double?,  // from the "sleep last night" slider or Health Connect (null if unknown)
     val localTime: String,         // "HH:mm", local
+    val minutesSinceBreak: Int? = null, // since session start or the last recovery (null if unknown)
 )
+enum class Intervention { BREAK, STAND_UP, RECOVERED }  // BREAK = eyes off screen 5 min, STAND_UP = stand up / walk a bit
 data class CoachMessage(
     val text: String,              // one short intervention, e.g. "Eyes closing +40% at 16:20: 5-min walk, then the hard email."
     val fromLlm: Boolean,          // false = offline template fallback
+    val kind: Intervention = Intervention.BREAK,  // chosen by the coach from the numbers (#29 folded in)
 )
 interface EnergyCoach {
     suspend fun advise(input: CoachInput): CoachMessage
     val llmCallCount: StateFlow<Int>   // shown by the frugality counter
 }
 ```
+Implementation: `FrugalEnergyCoach(llm: LlmClient?)` in `coach/EnergyCoach.kt` (`llm = null` → templates only).
+- `suspend fun onFatigue(state, localTime, sleepPriorHours = null): CoachMessage?` — feed every state; it tracks the
+  previous level itself and returns `null` unless the level changed **and** TIRED/EXHAUSTED is involved (FRESH ↔ OK is silent,
+  so the LLM budget is kept for the moments that matter). `reset()` forgets the level (demo F5), never the rate limit or counter.
+- `val lastMessage: StateFlow<CoachMessage?>` + `val llmCallCount: StateFlow<Int>` → `DashboardState.coach` / `DashboardState.llmCallCount`
+  (break alert #8 shows `coach.text` + `coach.kind`, frugality counter #14 shows `llmCallCount`).
+- `LlmClient` = `fun interface { suspend fun complete(system: String, user: String): String }`; real one = `OpenRouterLlmClient`
+  (Ktor, model from `EG_COACH_MODEL`, default `anthropic/claude-haiku-5.5`, max 60 tokens). 5 s timeout. Output sanitized
+  to one line ≤ 160 chars.
 Rules:
 - Called ONLY on level transitions (e.g. OK → TIRED), never on every frame.
 - At most 1 LLM call per 10 min. Inside that window, or on any error/timeout/no key → offline template (`fromLlm = false`).
 - The prompt contains numbers and short reason strings only: never images, audio, or keystroke content.
-- Every real LLM call increments `llmCallCount`.
+- Every real LLM call that returned a message increments `llmCallCount` (a failed attempt still uses the 10-min slot).
+- Reason strings are filtered to the engine's vocabulary (lowercase words, numbers, `%`, `+`, `-`, `.`, max 40 chars, top 3).
 
 ## Haptics (desktop)
 ```kotlin
