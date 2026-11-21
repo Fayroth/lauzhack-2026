@@ -70,6 +70,18 @@ data class FatigueState(
     val calibrated: Boolean,
 )
 ```
+Engine API (pure Kotlin, no internal clock: timestamps are passed in, epoch ms):
+```kotlin
+class FatigueEngine {
+    val state: StateFlow<FatigueState>
+    fun onVision(frame: VisionFrame)            // uses frame.ts
+    fun onInput(stats: InputStats, ts: Long)    // InputStats has no ts: pass System.currentTimeMillis()
+}
+```
+- Calibration: first 60 s *with a face* (or 60 s of input if no vision sidecar at all) → per-signal baseline.
+- Signals missing (no face, no typing, no gaze/hands tracker) are dropped and weights renormalized.
+- Eyes closed > 1 s → instant `TIRED` (reason `"eyes closed 1.2 s"`).
+- Levels use hysteresis: up at 30/55/80, down below 20/45/70.
 
 ## EnergyCoach (commonMain)
 Frugal generative layer: turns the fusion result into one short, personalized intervention.
