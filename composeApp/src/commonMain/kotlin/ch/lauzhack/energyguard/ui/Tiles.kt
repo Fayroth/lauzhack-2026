@@ -1,7 +1,6 @@
 package ch.lauzhack.energyguard.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,10 +26,10 @@ import kotlin.math.round
 
 /** Health of one signal group, shown as a colored dot on its tile. */
 enum class SignalHealth(val color: Color, val label: String) {
-    NONE(Color(0xFF616161), "no data"),
-    GOOD(Color(0xFF4CAF50), "normal"),
-    WARN(Color(0xFFFF9800), "drifting"),
-    BAD(Color(0xFFF44336), "tired"),
+    NONE(Warm.Faint, "Waiting"),
+    GOOD(Warm.Sage, "Normal"),
+    WARN(Warm.Apricot, "Drifting"),
+    BAD(Warm.Rose, "Tired"),
 }
 
 /** One value line on a tile: name, formatted value, and its own health. */
@@ -84,33 +83,41 @@ fun keyboardMetrics(i: InputStats?): List<Metric> {
 @Composable
 fun SignalTile(title: String, subtitle: String, metrics: List<Metric>, modifier: Modifier = Modifier) {
     val health = worst(metrics)
+    val shape = RoundedCornerShape(28.dp)
     Column(
         modifier
-            .background(Color(0xFF1E1E1E), RoundedCornerShape(20.dp))
-            .border(3.dp, health.color.copy(alpha = 0.7f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 24.dp, vertical = 16.dp),
+            .background(Warm.Surface, shape)
+            // A whisper of the signal's color in the card itself, instead of a hard outline.
+            .background(health.color.copy(alpha = if (health == SignalHealth.GOOD || health == SignalHealth.NONE) 0.04f else 0.10f), shape)
+            .padding(horizontal = 28.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(22.dp).background(health.color, CircleShape))
-            Spacer(Modifier.width(14.dp))
-            Text(title, fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.width(14.dp))
-            Text(subtitle, fontSize = 18.sp, color = Color.Gray)
+            Text(title, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+            Spacer(Modifier.width(12.dp))
+            Text(subtitle, fontSize = 17.sp, color = Warm.Muted)
             Spacer(Modifier.weight(1f))
-            // Tiles show the live value; the gauge shows the last minute. Say so, or "red gauge + green tiles" looks like a bug.
-            Text("now ", fontSize = 16.sp, color = Color.Gray)
-            Text(health.label.uppercase(), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = health.color)
+            // Tiles show the live value; the gauge shows the last minute. Say so, or "low gauge + calm tiles" looks like a bug.
+            Text("now", fontSize = 16.sp, color = Warm.Faint)
+            Spacer(Modifier.width(10.dp))
+            Row(
+                Modifier.background(health.color.copy(alpha = 0.16f), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(10.dp).background(health.color, CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Text(health.label, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = health.color)
+            }
         }
         metrics.forEach { m ->
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(m.name, fontSize = 22.sp, color = Color.LightGray)
+                Text(m.name, fontSize = 21.sp, color = Warm.Muted)
                 Spacer(Modifier.weight(1f))
                 Text(
                     m.value,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (m.health == SignalHealth.GOOD || m.health == SignalHealth.NONE) Color.White else m.health.color,
+                    fontSize = 25.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (m.health == SignalHealth.GOOD || m.health == SignalHealth.NONE) Warm.Text else m.health.color,
                 )
             }
         }

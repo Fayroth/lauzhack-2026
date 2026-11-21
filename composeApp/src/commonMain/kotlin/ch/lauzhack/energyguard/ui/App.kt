@@ -42,21 +42,21 @@ private const val EnergyHistorySize = 300
 /** Root composable shared by Desktop and Android (owner: Mehdi). */
 @Composable
 fun App(state: DashboardState) {
-    MaterialTheme(colorScheme = darkColorScheme()) {
+    MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
         DashboardScreen(state)
     }
 }
 
 @Composable
 fun DashboardScreen(state: DashboardState) {
-    Column(Modifier.fillMaxSize().background(Color(0xFF121212)).padding(horizontal = 40.dp, vertical = 28.dp)) {
+    Column(Modifier.fillMaxSize().background(Warm.Night).padding(horizontal = 44.dp, vertical = 30.dp)) {
         // Header
         Row(verticalAlignment = Alignment.Bottom) {
-            Text("EnergyGuard", fontSize = 44.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("EnergyGuard", fontSize = 40.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
             Spacer(Modifier.width(20.dp))
-            Text("Your devices notice when you get tired", fontSize = 22.sp, color = Color.Gray)
+            Text("Looking after your energy, quietly", fontSize = 21.sp, color = Warm.Muted)
             Spacer(Modifier.weight(1f))
-            Text("All computed locally - 0 images leave the PC", fontSize = 18.sp, color = Color(0xFF81C784))
+            Text("Everything stays on this computer", fontSize = 18.sp, color = Warm.Sage)
         }
         Spacer(Modifier.height(20.dp))
 
@@ -90,21 +90,21 @@ private fun GaugePanel(f: FatigueState) {
         EnergyGauge(energy = 100, label = "Calibrating", size = 360.dp, calibrating = true)
         Spacer(Modifier.height(20.dp))
         Text(
-            "Learning your normal... ${secondsLeft}s",
-            fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color(0xFF90CAF9),
+            "Getting to know you... ${secondsLeft} s",
+            fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Warm.Calm,
         )
-        Text("Just work naturally", fontSize = 22.sp, color = Color.Gray)
+        Text("Just work as usual", fontSize = 22.sp, color = Warm.Muted)
         return
     }
     EnergyGauge(f.energy, f.level.pretty(), size = 360.dp)
-    Text("over the last minute", fontSize = 16.sp, color = Color.Gray)
+    Text("over the last minute", fontSize = 16.sp, color = Warm.Faint)
     Spacer(Modifier.height(8.dp))
     Text(levelHint(f.level), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = energyColor(f.energy), textAlign = TextAlign.Center)
     // Top 3 reasons, so the jury sees WHY the gauge moved.
-    f.reasons.take(3).forEach { Text(it, fontSize = 22.sp, color = Color(0xFFFFB74D)) }
+    f.reasons.take(3).forEach { Text(it, fontSize = 21.sp, color = Warm.Muted) }
     Spacer(Modifier.height(12.dp))
     EnergyTrend(history, Modifier.width(420.dp).height(90.dp))
-    Text("energy, last 5 min", fontSize = 16.sp, color = Color.Gray)
+    Text("your energy, last 5 minutes", fontSize = 16.sp, color = Warm.Faint)
 }
 
 /** Samples the energy once per second (after calibration) and keeps the last [EnergyHistorySize] values. */
@@ -142,10 +142,10 @@ private fun sourceLabel(state: DashboardState): String = when {
 }
 
 private fun levelHint(level: Level): String = when (level) {
-    Level.FRESH -> "You're sharp"
-    Level.OK -> "Doing fine"
-    Level.TIRED -> "Getting tired"
-    Level.EXHAUSTED -> "Time to stop"
+    Level.FRESH -> "Fully charged"
+    Level.OK -> "Steady"
+    Level.TIRED -> "Running low, a break would help"
+    Level.EXHAUSTED -> "Time to rest"
 }
 
 private fun Level.pretty() = name.lowercase().replaceFirstChar { it.uppercase() }
