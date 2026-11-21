@@ -37,6 +37,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.ktor.client.cio) // phone companion (#48): read-only poll of the PC on the local Wi-Fi
         }
         desktopMain.dependencies {
             implementation(compose.desktop.currentOs)

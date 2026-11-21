@@ -34,7 +34,8 @@ data class VisionFrame(
     val headOnHand: Boolean? = null,
 )
 
-/** Mouse + keyboard statistics over a rolling window. Counts/timings only, NEVER key contents. */
+/** Mouse + keyboard statistics over a rolling window. Counts/timings only, NEVER key contents. Serializable for the phone companion (#48). */
+@Serializable
 data class InputStats(
     val windowMs: Long,          // e.g. 30_000
     val mouseDistancePx: Double,

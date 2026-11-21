@@ -229,6 +229,45 @@ Security (mandatory):
 - Extension side: **fail open**. No answer within 300 ms, app closed, or any non-200 → the link opens normally.
 - The extension sends only the link text + href (context `""`), only to 127.0.0.1. No page content, images or keystrokes.
 
+## Phone companion (desktop → Android over local Wi-Fi, #48)
+The PC is the sensor hub (webcam, MX Master 4, keyboard); the phone mirrors its live state. **Read-only**, separate from the
+guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `desktopMain/companion/`, off unless `EG_COMPANION=1`.
+
+`GET http://<PC LAN IP>:8767/state` (port: `EG_COMPANION_PORT`, default 8767), header `Authorization: Bearer <code>`
+→ `200`, `Content-Type: application/json`, `Cache-Control: no-store`
+```json
+{
+  "score": 62, "level": "TIRED", "reasons": ["long blinks +80%", "mouse jitter +40%"], "calibrated": true,
+  "coach": { "text": "Eyes closing x1.8 at 16:20: 5-min walk, then the hard email.", "kind": "BREAK", "fromLlm": true },
+  "ts": 1795260000123,
+  "llmCalls": 1, "calibrationMs": 15000, "windowMs": 10000, "runId": 0,
+  "vision": { "ts": 1795260000100, "face": true, "ear": 0.21, "perclos": 0.18, "blinkCount": 22, "source": "mock" },
+  "input": { "windowMs": 30000, "mouseDistancePx": 5200.0, "clickCount": 9, "overshootRatio": 1.4, "jitter": 1.2,
+             "keyCount": 80, "backspaceRatio": 0.12, "meanInterKeyMs": 240.0 }
+}
+```
+- `score`, `level` (`FRESH|OK|TIRED|EXHAUSTED`), `reasons`, `calibrated`: the PC's `FatigueState`. `coach`: last `CoachMessage`
+  or `null` (`kind` = `BREAK|STAND_UP|RECOVERED`). `ts`: PC time of the dashboard snapshot (epoch ms).
+- `llmCalls`, `calibrationMs`, `windowMs`, `runId`: same meaning as in `DashboardState`, so the phone draws exactly the PC dashboard.
+- `vision` (a `VisionFrame`, same JSON as the sidecar) and `input` (`InputStats`) are numbers only, `null` when absent.
+- Kotlin: `CompanionState` in `commonMain/.../companion/Companion.kt` (`DashboardState.toCompanionState(ts)` /
+  `CompanionState.toDashboardState()`), client `CompanionClient.fetch(PairingTarget)` → `Ok | WrongCode | TooManyTries | Unreachable`.
+- Errors: missing/wrong code → `401`; 5 wrong codes from one IP within 60 s → `429` for 60 s (even with the right code);
+  other path → `404`; any method but `GET` (incl. `OPTIONS`) → `405`; app not ready yet → `503`. Error body `{"error":"..."}`.
+- Phone: polls every ~1 s (timeout 1.5 s). 3 failures in a row → "Not connected to your PC" + local demo replay, keeps retrying.
+  `401` → pairing screen "Wrong code" (stops polling). `429` → "Too many wrong codes".
+
+Security (mandatory):
+- **Read-only:** one `GET`, no endpoint changes anything on the PC. Only numbers and the engine's short reason / coach strings:
+  never images, audio, keystrokes, URLs or guardrail data.
+- **Pairing code on every request:** 6 random digits (`SecureRandom`), new at every app start, shown on the dashboard
+  (`Phone: <IP>:<port> · code 123456`) and in the console. Compared in constant time (`MessageDigest.isEqual`).
+- Listens only when `EG_COMPANION=1`, on the LAN IPv4 of the default-route interface (override `EG_COMPANION_HOST`)
+  + `127.0.0.1` (for `adb reverse`). Without `EG_COMPANION`, nothing listens beyond the guard server.
+- No CORS headers at all (a web page can't send the `Authorization` header cross-origin without a preflight, which gets `405`).
+- Logs nothing but a request counter (no IPs, no codes). Plain HTTP on the LAN: use the phone's hotspot (WPA2), allow the
+  Windows Firewall prompt on **Private** networks only.
+
 ## Sources (desktop)
 ```kotlin
 interface VisionSource { fun frames(): Flow<VisionFrame> }   // MockVisionSource, WebSocketVisionSource
