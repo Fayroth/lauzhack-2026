@@ -120,7 +120,7 @@ fun main() = application {
     ) {
         CompositionLocalProvider(LocalGuard provides guard) {
             Box {
-                App(DashboardState(fatigue, lastVision, lastInput))
+                App(DashboardState(fatigue, lastVision, lastInput), demo = demo)
                 if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
             }
         }

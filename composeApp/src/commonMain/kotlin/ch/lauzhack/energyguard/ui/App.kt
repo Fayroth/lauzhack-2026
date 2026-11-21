@@ -45,13 +45,13 @@ private const val CALIBRATION_SECONDS = 60
 /** 5 minutes of history at one sample per second. */
 private const val EnergyHistorySize = 300
 
-/** Root composable shared by Desktop and Android (owner: Mehdi). */
+/** Root composable shared by Desktop and Android (owner: Mehdi). [demo] = short alert delays for the 2-min demo. */
 @Composable
-fun App(state: DashboardState) {
+fun App(state: DashboardState, demo: Boolean = false) {
     MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
         Box(Modifier.fillMaxSize()) {
             DashboardScreen(state)
-            BreakAlertOverlay(state.fatigue, Modifier.align(Alignment.BottomCenter).padding(bottom = 32.dp))
+            BreakAlertOverlay(state.fatigue, demo)
         }
     }
 }

@@ -1,43 +1,81 @@
 package ch.lauzhack.energyguard.ui
 
+import ch.lauzhack.energyguard.model.FatigueState
 import ch.lauzhack.energyguard.model.Level
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class BreakAlertLogicTest {
+    private fun logic() = BreakAlertLogic(cardAfterMs = 10_000, fullAfterMs = 10_000, snoozeMs = 30_000, awakeGraceMs = 5_000)
+
     @Test
-    fun showsOnlyWhenTiredOrWorse() {
-        val logic = BreakAlertLogic()
-        assertFalse(logic.isVisible(Level.FRESH, 0))
-        assertFalse(logic.isVisible(Level.OK, 0))
-        assertTrue(logic.isVisible(Level.TIRED, 0))
-        assertTrue(logic.isVisible(Level.EXHAUSTED, 0))
+    fun nothingWhileFreshOrOk() {
+        val l = logic()
+        assertEquals(AlertStage.NONE, l.stage(Level.FRESH, false, 0))
+        assertEquals(AlertStage.NONE, l.stage(Level.OK, false, 1_000))
+    }
+
+    @Test
+    fun tiredStartsWithHintThenCardIfIgnored() {
+        val l = logic()
+        assertEquals(AlertStage.HINT, l.stage(Level.TIRED, false, 0))
+        assertEquals(AlertStage.HINT, l.stage(Level.TIRED, false, 9_000))
+        assertEquals(AlertStage.CARD, l.stage(Level.TIRED, false, 10_000))
+    }
+
+    @Test
+    fun exhaustedGoesCardThenFullIfIgnored() {
+        val l = logic()
+        assertEquals(AlertStage.CARD, l.stage(Level.EXHAUSTED, false, 0))
+        assertEquals(AlertStage.FULL, l.stage(Level.EXHAUSTED, false, 10_000))
+    }
+
+    @Test
+    fun microSleepGoesFullAtOnceUnlessJustAcknowledged() {
+        val l = logic()
+        assertEquals(AlertStage.FULL, l.stage(Level.TIRED, true, 0))
+        l.awake(0)
+        assertEquals(AlertStage.HINT, l.stage(Level.TIRED, true, 1_000))
+        assertEquals(AlertStage.FULL, l.stage(Level.TIRED, true, 6_000))
     }
 
     @Test
     fun dismissLastsUntilTheNextTiredEpisode() {
-        val logic = BreakAlertLogic()
-        assertTrue(logic.isVisible(Level.TIRED, 0))
-        logic.dismiss()
-        assertFalse(logic.isVisible(Level.TIRED, 1_000))
-        assertFalse(logic.isVisible(Level.EXHAUSTED, 2_000)) // still the same episode
-        assertFalse(logic.isVisible(Level.OK, 3_000))        // recovered
-        assertTrue(logic.isVisible(Level.TIRED, 4_000))      // new episode: alert again
+        val l = logic()
+        l.stage(Level.TIRED, false, 0)
+        l.dismiss()
+        assertEquals(AlertStage.NONE, l.stage(Level.EXHAUSTED, false, 20_000))
+        assertEquals(AlertStage.NONE, l.stage(Level.OK, false, 21_000))
+        assertEquals(AlertStage.HINT, l.stage(Level.TIRED, false, 22_000))
     }
 
     @Test
-    fun snoozeHidesForTheSnoozeDuration() {
-        val logic = BreakAlertLogic(snoozeMs = 10_000)
-        logic.snooze(nowMs = 1_000)
-        assertFalse(logic.isVisible(Level.TIRED, 5_000))
-        assertTrue(logic.isVisible(Level.TIRED, 11_000))
+    fun snoozeHidesThenRestartsFromHint() {
+        val l = logic()
+        l.stage(Level.TIRED, false, 0)
+        l.snooze(15_000)
+        assertEquals(AlertStage.NONE, l.stage(Level.TIRED, false, 40_000))
+        assertEquals(AlertStage.HINT, l.stage(Level.TIRED, false, 45_000))
+        assertEquals(AlertStage.CARD, l.stage(Level.TIRED, false, 55_000))
+    }
+
+    @Test
+    fun hintClickOpensTheCard() {
+        val l = logic()
+        l.stage(Level.TIRED, false, 0)
+        l.openCard(2_000)
+        assertEquals(AlertStage.CARD, l.stage(Level.TIRED, false, 2_000))
     }
 
     @Test
     fun detailUsesTheTopReasonAsAFactor() {
-        val f = ch.lauzhack.energyguard.model.FatigueState(score = 60, level = Level.TIRED, reasons = listOf("eyes closing +347%"), calibrated = true)
+        val f = FatigueState(score = 60, level = Level.TIRED, reasons = listOf("eyes closing +347%"), calibrated = true)
         assertEquals("Eyes closing ×4.5 vs usual. Look away, stretch, breathe.", breakDetail(f))
+    }
+
+    @Test
+    fun microSleepIsReadFromTheEngineReason() {
+        val f = FatigueState(score = 60, level = Level.TIRED, reasons = listOf("eyes closed 2.3 s", "long blinks +80%"), calibrated = true)
+        assertEquals("eyes closed 2.3 s", microSleepReason(f))
     }
 }
