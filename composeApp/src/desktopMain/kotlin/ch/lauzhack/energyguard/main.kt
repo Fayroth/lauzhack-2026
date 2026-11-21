@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -40,6 +41,7 @@ import ch.lauzhack.energyguard.model.InputStats
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.App
 import ch.lauzhack.energyguard.ui.DashboardState
+import ch.lauzhack.energyguard.ui.brand.energyGuardIcon
 import ch.lauzhack.energyguard.vision.MockVisionSource
 import ch.lauzhack.energyguard.vision.WebSocketVisionSource
 import kotlinx.coroutines.delay
@@ -121,6 +123,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = if (demo) "EnergyGuard (demo mode)" else "EnergyGuard",
+        icon = rememberVectorPainter(remember { energyGuardIcon() }),
         state = rememberWindowState(width = 1280.dp, height = 800.dp),
         onKeyEvent = {
             if (demo && it.type == KeyEventType.KeyDown && it.key == Key.F5) {
