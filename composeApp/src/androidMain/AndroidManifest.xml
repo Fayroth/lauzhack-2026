@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Phone vibration on TIRED / EXHAUSTED (HapticOutput). No camera, mic or network permission. -->
+    <!-- Phone vibration on TIRED / EXHAUSTED (HapticOutput). No camera or mic permission. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Phone companion (#48): read-only GET /state to the paired PC on the local Wi-Fi, nothing else.
+         Plain HTTP on the LAN (usesCleartextTraffic): the PC has no TLS cert; every request carries the pairing code. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="false"
+        android:usesCleartextTraffic="true"
         android:icon="@android:drawable/sym_def_app_icon"
         android:label="EnergyGuard"
         android:theme="@android:style/Theme.Material.NoActionBar">

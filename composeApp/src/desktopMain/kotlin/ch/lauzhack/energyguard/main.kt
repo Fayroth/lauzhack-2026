@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +28,9 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import ch.lauzhack.energyguard.coach.desktopEnergyCoach
 import ch.lauzhack.energyguard.coach.localTimeHHmm
+import ch.lauzhack.energyguard.companion.CompanionServer
+import ch.lauzhack.energyguard.companion.CompanionState
+import ch.lauzhack.energyguard.companion.toCompanionState
 import ch.lauzhack.energyguard.demo.DemoClock
 import ch.lauzhack.energyguard.demo.DemoScript
 import ch.lauzhack.energyguard.engine.FatigueEngine
@@ -50,6 +54,7 @@ import ch.lauzhack.energyguard.vision.MockVisionSource
 import ch.lauzhack.energyguard.vision.WebSocketVisionSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
+import java.util.concurrent.atomic.AtomicReference
 
 /** Vision panel shows "-" if no frame arrived for this long (sidecar down/restarting). */
 private const val VISION_STALE_MS = 2_000L
@@ -65,6 +70,8 @@ private const val VISION_STALE_MS = 2_000L
  * Demo mode (EG_DEMO=1): scripted fatigue ramp into the same engine (demo/DemoMode.kt), F5 replays it, "DEMO" marker.
  * Inbox: second window "EnergyGuard — Inbox" (guardrail demo, ui/DemoInbox.kt), open at start in demo mode, F2 on the dashboard opens it.
  * Chrome guard (#43): POST http://127.0.0.1:8766/guard for extension/ (guard/GuardServer.kt), same `guard` function as LocalGuard.
+ * Phone companion (#48, EG_COMPANION=1 only): read-only GET http://<LAN IP>:8767/state with a pairing code (companion/CompanionServer.kt),
+ * fed a snapshot of the dashboard state after each recomposition. Off by default: nothing more listens.
  */
 fun main() = application {
     val demo = remember { System.getenv("EG_DEMO") == "1" }
@@ -98,6 +105,14 @@ fun main() = application {
     DisposableEffect(Unit) {
         val server = GuardServer.fromEnv(guard) { currentEngine.state.value.level }.also { it.start() }
         onDispose { server.stop() }
+    }
+
+    // Phone companion: Ktor threads only read this snapshot; the UI thread writes it (SideEffect below).
+    val companionSnapshot = remember { AtomicReference<CompanionState?>(null) }
+    val companion = remember { CompanionServer.fromEnv(companionSnapshot::get) } // null unless EG_COMPANION=1
+    DisposableEffect(companion) {
+        companion?.start()
+        onDispose { companion?.stop() }
     }
 
     var showInbox by remember { mutableStateOf(demo) }
@@ -151,14 +166,15 @@ fun main() = application {
             },
         ) {
             Box {
-                App(
-                    DashboardState(
-                        fatigue, lastVision, lastInput, coachMessage, llmCalls,
-                        calibrationMs = if (demo) DemoScript.CALIBRATION_MS else FatigueEngine.DEFAULT_CALIBRATION_MS,
-                        windowMs = if (demo) DemoScript.WINDOW_MS else FatigueEngine.DEFAULT_WINDOW_MS,
-                        runId = demoRun,
-                    )
+                val dashboard = DashboardState(
+                    fatigue, lastVision, lastInput, coachMessage, llmCalls,
+                    calibrationMs = if (demo) DemoScript.CALIBRATION_MS else FatigueEngine.DEFAULT_CALIBRATION_MS,
+                    windowMs = if (demo) DemoScript.WINDOW_MS else FatigueEngine.DEFAULT_WINDOW_MS,
+                    runId = demoRun,
                 )
+                if (companion != null) SideEffect { companionSnapshot.set(dashboard.toCompanionState(System.currentTimeMillis())) }
+                App(dashboard)
+                companion?.let { Text(it.pairingLabel, Modifier.align(Alignment.BottomStart).padding(12.dp), fontSize = 16.sp, color = Color.Gray) }
                 if (demo) Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
             }
         }

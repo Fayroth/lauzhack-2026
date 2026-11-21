@@ -5,7 +5,9 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -29,6 +31,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ch.lauzhack.energyguard.coach.FrugalEnergyCoach
+import ch.lauzhack.energyguard.companion.CompanionBanner
+import ch.lauzhack.energyguard.companion.LiveCompanion
+import ch.lauzhack.energyguard.companion.PairingPrefs
+import ch.lauzhack.energyguard.companion.PairingScreen
+import ch.lauzhack.energyguard.companion.PairingTarget
 import ch.lauzhack.energyguard.demo.DemoScript
 import ch.lauzhack.energyguard.demo.mockInputStats
 import ch.lauzhack.energyguard.demo.mockVisionFrame
@@ -52,18 +59,66 @@ private val DESIGN_HEIGHT = 800.dp
  * commonMain: DemoScript + sample builders -> FatigueEngine -> FrugalEnergyCoach (offline templates, no key on the
  * phone) -> HapticTrigger -> shared App() dashboard. Android-specific: this activity and phone vibration.
  * No camera, WebSocket or JNativeHook here (desktop only). "Replay" restarts the script (desktop: F5).
+ * Phone companion (#48): once paired with a PC running EG_COMPANION=1, the phone mirrors the PC's LIVE state instead
+ * (read-only poll of GET /state, companion/PhoneCompanion.kt); connection lost -> banner + this demo replay as fallback.
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) // demo on a table: never dims
         val haptics = VibratorHapticOutput(this)
-        setContent { AndroidDemoApp(haptics) }
+        val prefs = PairingPrefs(this)
+        setContent { PhoneRoot(haptics, prefs) }
+    }
+}
+
+/** Pairing screen -> live mirror of the PC; "Demo without PC" -> the local demo replay. */
+@Composable
+private fun PhoneRoot(haptics: HapticOutput, prefs: PairingPrefs) {
+    var target by remember { mutableStateOf(prefs.load()) }
+    var pairing by remember { mutableStateOf(target == null) }
+    var demoOnly by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val pairAgain = { pairing = true; demoOnly = false }
+    when {
+        demoOnly -> AndroidDemoApp(haptics, banner = null, onPair = pairAgain)
+        pairing || target == null -> PairingScreen(
+            lastHost = prefs.lastHost(), lastPort = prefs.lastPort(), error = error,
+            onConnect = { t: PairingTarget -> prefs.save(t); target = t; error = null; pairing = false },
+            onDemo = { demoOnly = true },
+        )
+        else -> LiveCompanion(
+            target!!, haptics,
+            onStop = { reason -> prefs.forgetCode(); error = reason.message; pairing = true },
+            dashboard = { state, banner ->
+                Box(Modifier.fillMaxSize().background(Warm.Night).safeDrawingPadding()) {
+                    ScaledDashboard(state)
+                    banner?.let { CompanionBanner(it, Color(0xFF2E7D32), Modifier.align(Alignment.TopCenter).padding(8.dp)) }
+                    OutlinedButton(onClick = pairAgain, Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+                        Text("Change PC", fontSize = 14.sp, color = Warm.Muted)
+                    }
+                    Text("LIVE from your PC", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color(0xFF81C784))
+                }
+            },
+            offline = { banner -> AndroidDemoApp(haptics, banner, onPair = pairAgain) },
+        )
+    }
+}
+
+/** The shared App(), laid out at 1280x800 and scaled to the phone. */
+@Composable
+private fun ScaledDashboard(state: DashboardState) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val scale = minOf(maxWidth / DESIGN_WIDTH, maxHeight / DESIGN_HEIGHT)
+        val density = LocalDensity.current
+        CompositionLocalProvider(LocalDensity provides Density(density.density * scale, fontScale = 1f)) {
+            Box(Modifier.size(DESIGN_WIDTH, DESIGN_HEIGHT).align(Alignment.Center)) { App(state) }
+        }
     }
 }
 
 @Composable
-private fun AndroidDemoApp(haptics: HapticOutput) {
+private fun AndroidDemoApp(haptics: HapticOutput, banner: String?, onPair: () -> Unit) {
     var run by remember { mutableStateOf(0) } // Replay: fresh engine + haptic cooldown, script from 0
     val engine = remember(run) { DemoScript.newEngine() }
     val hapticTrigger = remember(run) { HapticTrigger() }
@@ -96,24 +151,18 @@ private fun AndroidDemoApp(haptics: HapticOutput) {
     }
 
     Box(Modifier.fillMaxSize().background(Warm.Night).safeDrawingPadding()) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val scale = minOf(maxWidth / DESIGN_WIDTH, maxHeight / DESIGN_HEIGHT)
-            val density = LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density.density * scale, fontScale = 1f)) {
-                Box(Modifier.size(DESIGN_WIDTH, DESIGN_HEIGHT).align(Alignment.Center)) {
-                    App(
-                        DashboardState(
-                            fatigue, lastVision, lastInput, coachMessage, llmCalls,
-                            calibrationMs = DemoScript.CALIBRATION_MS,
-                            windowMs = DemoScript.WINDOW_MS,
-                            runId = run,
-                        )
-                    )
-                }
-            }
-        }
-        OutlinedButton(onClick = { run++ }, Modifier.align(Alignment.BottomStart).padding(8.dp)) {
-            Text("Replay", fontSize = 14.sp, color = Warm.Muted)
+        ScaledDashboard(
+            DashboardState(
+                fatigue, lastVision, lastInput, coachMessage, llmCalls,
+                calibrationMs = DemoScript.CALIBRATION_MS,
+                windowMs = DemoScript.WINDOW_MS,
+                runId = run,
+            )
+        )
+        banner?.let { CompanionBanner(it, Color(0xFFC62828), Modifier.align(Alignment.TopCenter).padding(8.dp)) }
+        Row(Modifier.align(Alignment.BottomStart).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { run++ }) { Text("Replay", fontSize = 14.sp, color = Warm.Muted) }
+            OutlinedButton(onClick = onPair) { Text("Connect to PC", fontSize = 14.sp, color = Warm.Muted) }
         }
         Text("DEMO", Modifier.align(Alignment.BottomEnd).padding(12.dp), fontSize = 14.sp, color = Color.Gray)
     }
