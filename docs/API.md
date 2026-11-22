@@ -36,11 +36,12 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
   meanwhile the engine runs on input only and the UI vision panel shows "-" after 2 s without frames.
 - `ear`: eye aspect ratio (avg of both eyes). `eyesClosed`: eye closure >= 60 % (reopen < 30 %), closure = blendshape
   `eyeBlink` or EAR vs the personal baseline. Partial closure counts on purpose: micro-sleeps (0.5-15 s) happen with the eyes
-  fully or partially closed, and the engine turns > 1 s into TIRED.
+  fully or partially closed. Only sent `true` once the closure is held >= 200 ms (no single noisy frame); the engine needs
+  > 3 s of it for a micro-sleep.
 - `blinkCount`: blinks **per minute** over the last 60 s. During the first minute it is extrapolated (`n * 60 / covered s`)
   and null before 15 s of eye data, so the engine's 60 s calibration does not learn a ramp from 0.
-- `lastBlinkMs`: duration of the last blink. A blink is a 50 ms..1 s closure; longer closures go through `eyesClosed`
-  (micro-sleep path) and are neither counted nor reported as blinks.
+- `lastBlinkMs`: duration of the last blink. A blink is a 50-500 ms closure; longer closures (a glance down, a micro-sleep)
+  go through `eyesClosed` / PERCLOS and are neither counted nor reported as blinks.
 - `perclos`: fraction of the last 60 s with eyes >= 80 % closed.
 - `source`: which perception path produced the eye metrics:
   `"logiinsight-rgb"` (LogiInsight SDK face mesh on the RGB stream), `"logiinsight-ir"` (same on the IR stream: low light / glasses),
@@ -102,8 +103,10 @@ class FatigueEngine {
 - Signals missing (no face, no typing, no gaze/hands tracker) are dropped and weights renormalized.
 - Every signal is one-sided: only a change in the fatigue direction scores. Blink rate counts when it RISES (rises with
   sleepiness); a drop (focused reading / screen work lowers the blink rate) does not count as fatigue.
-- Eyes closed > 1 s → instant `TIRED` (reason `"eyes closed 1.2 s"`). If the face disappears after the eyes have been
-  closed >= 0.5 s (head dropping), the closure keeps counting for up to 3 s; a normal blink + head turn does not.
+- Eyes closed > 3 s → micro-sleep: instant `TIRED` (reason `"eyes closed 3.2 s"`), score floor 60. Closures < 3 s (blinks,
+  a glance at the keyboard) never force the level; they only count through PERCLOS. Euro NCAP tests micro-sleep detection
+  with eyes closed up to 4 s. If the face disappears after the eyes have been closed >= 1.5 s (head dropping), the closure
+  keeps counting for up to 3 s; a blink or a ~1 s glance followed by losing the face does not.
 - `FatigueState.concentration = 100 - score` is what the gauge ("Concentration"), the coach and the guardrail show.
   The word "energy" is only used for the slow `EnergyBattery`.
 - Levels use hysteresis: up at 30/55/80, down below 20/45/70.

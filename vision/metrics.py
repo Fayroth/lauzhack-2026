@@ -3,8 +3,9 @@
 Our code. Formulas from the literature (cited in docs/BUILD_LOG.md):
 - EAR (Soukupova & Cech 2016) on the standard MediaPipe eye indices, averaged over both eyes.
 - PERCLOS (Wierwille 1994, Dinges 1998): fraction of the last 60 s with eyes >= 80 % closed.
-- eyesClosed: closure >= 60 % (hysteresis, reopen < 30 %). Micro-sleeps happen with the eyes fully OR partially closed
-  (0.5-15 s), so heavy-lidded eyes held > 1 s count, like in the engine's 1 s rule. Blinks: 50 ms .. 1 s closures.
+- eyesClosed: closure >= 60 % (hysteresis, reopen < 30 %) held for >= 200 ms, so one noisy frame is never "closed".
+  The engine needs > 3 s of it for a micro-sleep (Euro NCAP tests with eyes closed up to 4 s).
+- Blinks: 50-500 ms closures (spontaneous blinks < 0.4 s, drowsy blinks longer); longer = prolonged closure, no blink.
 Eye "closure" (0 = open, 1 = closed) comes from the MediaPipe blendshape model (eyeBlinkLeft/Right) when it is
 available, otherwise from EAR relative to a personal baseline. Thresholds are our spike choices, not validated values.
 """
@@ -24,7 +25,8 @@ CLOSE_ON, CLOSE_OFF = 0.6, 0.3  # hysteresis (spike #25 + bs_miclos: tighter = f
 PERCLOS_LEVEL = 0.8    # "eyes >= 80 % closed"
 EAR_CLOSED_RATIO = 0.25  # EAR path: closure = 1 when EAR <= 25 % of baseline (spike #25: blinks reach ~12-20 %)
 MIN_BLINK_MS = 50
-MAX_BLINK_MS = 1000    # longer = prolonged closure (micro-sleep path via eyesClosed), not a blink; engine uses 1 s too
+MAX_BLINK_MS = 500     # longer = prolonged closure (glance down, micro-sleep), not a blink: keeps lastBlinkMs clean
+CLOSED_MIN_S = 0.2     # eyesClosed only after the closure is held this long (no single-frame "closed")
 MIN_RATE_S = 15.0      # blinkCount: none before 15 s of eye data, then extrapolated to 60 s until the window is full
 MAX_YAW_DEG = 25.0     # head turned more than this -> eye signals unreliable (spike #25 profile test). Initial guess.
 YAWN_JAW, YAWN_MIN_S = 0.6, 1.5  # blendshape path only
@@ -134,7 +136,7 @@ class EyeMetrics:
             self.jaw_since = None
 
         out.update({
-            "eyesClosed": self.closed,
+            "eyesClosed": self.closed and self.closed_since is not None and t - self.closed_since >= CLOSED_MIN_S,
             "blinkCount": self._blink_rate(),
             "lastBlinkMs": self.last_blink_ms,
             "perclos": round(sum(s[1] for s in self.samples if s[2]) / total, 3) if total > 0 else 0.0,

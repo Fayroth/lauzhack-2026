@@ -27,8 +27,10 @@ import kotlin.math.sqrt
  *  3. Weighted average of the z-scores, renormalized over the signals that are actually available
  *     (no face, no keyboard, no gaze tracker = those signals just drop out, no bias).
  *  4. Time-based EMA smoothing, then levels with hysteresis (±[MARGIN] around 25/50/75).
- *  5. Eyes closed > 1 s (micro-sleep) → instant TIRED. If the face is lost while the eyes have been closed >= 0.5 s
- *     (head dropping), the closure keeps counting for up to [FACE_LOSS_HOLD_MS].
+ *  5. Eyes closed > [MICRO_SLEEP_MS] (3 s, micro-sleep) → instant TIRED. Shorter closures (a glance at the keyboard,
+ *     a slow blink) never force the level; they only count through PERCLOS. Euro NCAP tests micro-sleep detection with
+ *     eyes closed up to 4 s. If the face is lost after the eyes have been closed >= [HEAD_DROP_MIN_CLOSED_MS] (head
+ *     dropping), the closure keeps counting for up to [FACE_LOSS_HOLD_MS].
  *
  * Not thread-safe: call onVision/onInput from one thread (the Compose main dispatcher does that).
  */
@@ -243,10 +245,12 @@ class FatigueEngine(
         private val BOUNDS = intArrayOf(25, 50, 75) // FRESH | OK | TIRED | EXHAUSTED
         private const val Z_MAX = 3.0
         private const val REASON_MIN_Z = 1.0
-        private const val MICRO_SLEEP_MS = 1_000L
+        private const val MICRO_SLEEP_MS = 3_000L // Euro NCAP micro-sleep test: eyes closed up to 4 s
         private const val MICRO_SLEEP_SCORE = 60.0
         private const val MAX_VISION_GAP_MS = 1_000L
-        private const val HEAD_DROP_MIN_CLOSED_MS = 500L // micro-sleeps last 0.5-15 s: a 200 ms blink + head turn is not one
+        // Closed this long BEFORE the face is lost = head dropping. A blink or a ~1 s glance at the keyboard (the mesh is
+        // often lost when looking down) is not.
+        private const val HEAD_DROP_MIN_CLOSED_MS = 1_500L
         private const val FACE_LOSS_HOLD_MS = 3_000L
         private const val MAX_INPUT_GAP_MS = 6_000L // > JNativeHookInputSource emit period (5 s)
         private const val VISION_ABSENT_MS = 5_000L
