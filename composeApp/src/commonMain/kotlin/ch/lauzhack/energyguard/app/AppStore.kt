@@ -1,5 +1,6 @@
 package ch.lauzhack.energyguard.app
 
+import ch.lauzhack.energyguard.coach.CoachCheckIn
 import ch.lauzhack.energyguard.coach.CoachMessage
 import ch.lauzhack.energyguard.engine.BaselineSummary
 import ch.lauzhack.energyguard.model.FatigueState
@@ -56,6 +57,9 @@ class AppStore(
     private var llmTodayBase = 0      // today's LLM calls before this app start (restored) or 0
     private var llmCountAtDayStart = 0
     private var llmCount = 0
+    private var historyStartMs = 0L
+    private var historyValues = listOf<Int>()
+    private var historyAppMs = 0L     // app time since the last history sample (accelerated in demo)
 
     private val _state: MutableStateFlow<AppState>
     val state: StateFlow<AppState>
@@ -86,6 +90,7 @@ class AppStore(
         lastActivityTs = now
         lastSaveTs = now
         lastTickTs = now
+        startHistory(now)
         _state = MutableStateFlow(snapshot())
         state = _state.asStateFlow()
     }
@@ -112,7 +117,8 @@ class AppStore(
 
     /** From FrugalEnergyCoach.lastMessage + llmCallCount (cumulative since app start). */
     fun onCoach(message: CoachMessage?, llmCallCount: Int) {
-        coach = message?.let(CoachNote::from)
+        val next = message?.let(CoachNote::from)
+        coach = if (next != null && coach?.copy(ts = null) == next) coach else next?.copy(ts = clock())
         llmCount = llmCallCount
         publish()
     }
@@ -146,6 +152,11 @@ class AppStore(
         val onBreak = breakSource != null
         battery = EnergyBattery.step(battery, (dt * timeScale).toLong(), level, onBreak)
         minBattery = min(minBattery, battery)
+        historyAppMs += (dt * timeScale).toLong()
+        while (historyAppMs >= EnergyHistory.STEP_MS) {
+            historyAppMs -= EnergyHistory.STEP_MS
+            historyValues = (historyValues + battery.roundToInt()).takeLast(EnergyHistory.MAX_SAMPLES)
+        }
         if (!onBreak && dt > 0) {
             val current = stats.currentFocusMs + dt
             stats = stats.copy(
@@ -177,11 +188,21 @@ class AppStore(
         publish()
     }
 
-    /** Adds a check-in (all optional, out-of-range values dropped). Returns null if nothing valid was given. */
-    fun addJournalEntry(kss: Int? = null, stress: Int? = null, caffeine: Int? = null, note: String? = null): JournalEntry? {
+    /**
+     * Adds a check-in (all optional, out-of-range values dropped). Returns null if nothing valid was given.
+     * [concentration] = the value to record with it; null = ours (the phone passes the PC's while paired).
+     */
+    fun addJournalEntry(
+        kss: Int? = null,
+        stress: Int? = null,
+        caffeine: Int? = null,
+        note: String? = null,
+        concentration: Int? = null,
+    ): JournalEntry? {
         val now = clock()
         val id = max(now, (journal.maxOfOrNull { it.id } ?: Long.MIN_VALUE) + 1)
-        val entry = JournalEntry(id, now, kss, stress, caffeine, note, concentration = 100 - fatigue.score).sanitized()
+        val measured = (concentration ?: (100 - fatigue.score)).coerceIn(0, 100)
+        val entry = JournalEntry(id, now, kss, stress, caffeine, note, concentration = measured).sanitized()
         if (entry.isEmpty) return null
         journal = (listOf(entry) + journal).take(JournalEntry.MAX_ENTRIES)
         persistence.saveJournal(journal)
@@ -195,6 +216,15 @@ class AppStore(
         journal = next
         persistence.saveJournal(journal)
         publish()
+    }
+
+    /** Today's latest check-in with a KSS, stress or caffeine value, as numbers only (EnergyCoach input). Never the note. */
+    fun coachCheckIn(): CoachCheckIn? {
+        for (e in journal) {
+            if (dayKey(e.ts) != stats.day) return null
+            if (e.kss != null || e.stress != null || e.caffeine != null) return CoachCheckIn(e.kss, e.stress, e.caffeine)
+        }
+        return null
     }
 
     /** Any settings change; a new sleep value shifts the battery (see [setSleepHours]). */
@@ -236,6 +266,7 @@ class AppStore(
         lastTickTs = now
         concentrationSum = 0
         concentrationSamples = 0
+        startHistory(now)
         publish()
     }
 
@@ -271,7 +302,14 @@ class AppStore(
         minBattery = battery
         concentrationSum = 0
         concentrationSamples = 0
+        startHistory(now)
         if (persistHistory) saveHistory(now)
+    }
+
+    private fun startHistory(now: Long) {
+        historyStartMs = now
+        historyValues = listOf(battery.roundToInt())
+        historyAppMs = 0
     }
 
     private fun saveHistory(now: Long) {
@@ -334,6 +372,7 @@ class AppStore(
             settings = settings,
             history = history,
             demo = demo,
+            energyHistory = EnergyHistory(historyStartMs, historyValues),
         )
     }
 

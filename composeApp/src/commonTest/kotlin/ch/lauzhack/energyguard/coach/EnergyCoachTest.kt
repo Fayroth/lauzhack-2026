@@ -153,4 +153,28 @@ class EnergyCoachTest {
         assertTrue("sleep last night: 5.0 h" in llm.prompts.single(), llm.prompts.single())
         assertTrue("minutes since last break: 3" in llm.prompts.single())
     }
+
+    @Test
+    fun checkInNumbersReachThePromptButNeverTheNote() = runTest {
+        // Through the real path: AppStore entry (with a private note) -> coachCheckIn() -> coach -> LLM request.
+        val store = ch.lauzhack.energyguard.app.TestClock().store()
+        store.addJournalEntry(kss = 7, stress = 4, caffeine = 3, note = "PRIVATE-NOTE-42 my boss")
+        val llm = FakeLlm()
+        val c = coach(llm)
+        c.onFatigue(state(Level.OK, 40), "16:20", checkIn = store.coachCheckIn())
+        assertNotNull(c.onFatigue(state(Level.TIRED, 62, "long blinks +80%"), "16:21", checkIn = store.coachCheckIn()))
+        val prompt = llm.prompts.single()
+        assertTrue("self-rated sleepiness (KSS 1-9): 7" in prompt, prompt)
+        assertTrue("self-rated stress (1-5): 4" in prompt, prompt)
+        assertTrue("caffeine today: 3 cups" in prompt, prompt)
+        assertFalse("PRIVATE-NOTE" in prompt, prompt)
+        assertFalse("boss" in prompt, prompt)
+    }
+
+    @Test
+    fun outOfRangeCheckInNumbersAreDropped() {
+        val input = CoachInput(state(Level.TIRED, 62), Level.OK, null, "16:20", checkIn = CoachCheckIn(kss = 42, stress = 0, caffeine = -1))
+        val prompt = FrugalEnergyCoach.buildPrompt(input, Intervention.BREAK)
+        assertFalse("sleepiness" in prompt || "stress" in prompt || "caffeine" in prompt, prompt)
+    }
 }

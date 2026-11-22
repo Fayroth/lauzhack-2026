@@ -31,4 +31,24 @@ class CopyTest {
         assertEquals("7 h", hoursText(7.0))
         assertEquals("6.5 h", hoursText(6.5))
     }
+
+    @Test fun shortReasonsForTheStateLine() {
+        assertEquals(ShortReason("4.5×", "eyes closing"), shortReason("eyes closing +347%"))
+        assertEquals(ShortReason("1.8×", "longer blinks"), shortReason("long blinks +80%"))
+        assertEquals(ShortReason("−32%", "typing"), shortReason("slower typing +32%"))
+        assertEquals(ShortReason("+20%", "mouse shake"), shortReason("shaky mouse +20%"))
+        assertEquals(ShortReason("", "rubbing eyes"), shortReason("rubbing eyes"))
+    }
+
+    @Test fun compactLabels() {
+        assertEquals("1h 12m", durationShort(72 * 60_000L))
+        assertEquals("43m", durationShort(43 * 60_000L))
+        assertEquals("Sunday 22 November", dayLabel("2026-11-22"))
+        assertEquals("Saturday 21 November", dayLabel("2026-11-21"))
+        assertEquals("Thursday 1 January", dayLabel("2026-01-01"))
+        assertEquals("x", dayLabel("x"))
+        assertEquals("08:05", clockLabel(485))
+        assertEquals("00:10", clockLabel(1450))
+        assertEquals("last 60 s", windowShort(60_000))
+    }
 }

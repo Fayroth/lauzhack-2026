@@ -12,6 +12,11 @@ actual fun localDayKey(epochMs: Long): String {
     return String.format(Locale.ROOT, "%04d-%02d-%02d", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
 }
 
+actual fun localClockTime(epochMs: Long): String {
+    val c = Calendar.getInstance().apply { timeInMillis = epochMs }
+    return String.format(Locale.ROOT, "%02d:%02d", c.get(Calendar.HOUR_OF_DAY), c.get(Calendar.MINUTE))
+}
+
 /** App-private `filesDir` (not readable by other apps, allowBackup=false). rename() replaces atomically on Linux. */
 private class AndroidTextFiles(private val dir: File) : TextFiles {
     override fun read(name: String): String? = File(dir, name).takeIf { it.isFile }?.readText()

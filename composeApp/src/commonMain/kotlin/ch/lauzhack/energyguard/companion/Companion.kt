@@ -5,6 +5,7 @@ import ch.lauzhack.energyguard.app.BreakSource
 import ch.lauzhack.energyguard.app.CoachNote
 import ch.lauzhack.energyguard.app.Concentration
 import ch.lauzhack.energyguard.app.DayStats
+import ch.lauzhack.energyguard.app.EnergyHistory
 import ch.lauzhack.energyguard.app.EnergyState
 import ch.lauzhack.energyguard.app.Settings
 import ch.lauzhack.energyguard.coach.CoachMessage
@@ -55,6 +56,8 @@ data class CompanionState(
     val stats: CompanionStats? = null,
     // --- Optional, M3: the Live signals card as numbers (the phone has no personal baseline to compute "× usual") ---
     val signals: SignalsSnapshot? = null,
+    // --- Optional, M4.5: today's battery curve for the Energy chart (EnergyHistory, one value per 5 min) ---
+    val energyHistory: List<Int>? = null,
 )
 
 @Serializable
@@ -94,6 +97,7 @@ fun CompanionState.withApp(app: AppState) = copy(
         app.energy.battery, app.energy.onBreak, app.energy.breakSource, app.energy.startFromSleep, app.settings.sleepHours,
     ),
     signals = app.liveSignals(),
+    energyHistory = app.energyHistory.values,
     recovery = app.recovery,
     stats = with(app.stats) {
         CompanionStats(focusedMs, breaksTaken, breaksNeeded, longestFocusMs, phishingBlocked, llmCalls, framesProcessed,
@@ -114,6 +118,7 @@ fun CompanionState.clampAppFields() = copy(
         )
     },
     signals = signals?.clamped(),
+    energyHistory = energyHistory?.takeLast(EnergyHistory.MAX_SAMPLES)?.map { it.coerceIn(0, 100) },
     recovery = recovery?.coerceIn(0, 100),
     stats = stats?.let {
         it.copy(
@@ -146,6 +151,7 @@ fun CompanionState.toAppState(local: AppState, day: String): AppState {
         } ?: DayStats(day, llmCalls = dashboard.llmCallCount),
         settings = e?.sleepHours?.let { local.settings.copy(sleepHours = it) } ?: local.settings,
         demo = false,
+        energyHistory = EnergyHistory(values = energyHistory ?: e?.let { listOf(it.battery) } ?: emptyList()),
     )
 }
 

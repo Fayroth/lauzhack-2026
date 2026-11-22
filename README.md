@@ -67,7 +67,7 @@ EG_HAPTICS=mx ./gradlew :composeApp:run          # PowerShell: $env:EG_HAPTICS="
 EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; .\gradlew.bat :composeApp:run
 # Overrides EG_VISION / EG_INPUT (combine with EG_HAPTICS=mx for real vibration). F5 = restart the script.
 # A second window "EnergyGuard — Inbox" opens too (guardrail demo). Outside demo mode: F2 on the dashboard opens it.
-# A "DEMO" badge is shown in the header. Keys: 1 / 2 / 3 = Today / Journal / Profile tabs, F2 = inbox, F5 = replay.
+# A "Demo data" pill is shown in the header. Keys: 1 / 2 / 3 = Today / Journal / Profile tabs, F2 = inbox, F5 = replay.
 
 # 7. EnergyCoach (LLM): put OPENROUTER_API_KEY in .env (see .env.example). Without it -> offline templates.
 # Coach messages are printed as "[coach] ..." in the console. EG_COACH=offline forces templates, EG_COACH_MODEL=<id> changes the model.
@@ -88,12 +88,12 @@ Venue / eduroam Wi-Fi usually blocks device-to-device traffic, so **put the lapt
 1. Phone: turn on the **mobile hotspot**. Laptop: join that Wi-Fi **before** starting the app (the app picks its address at start).
 2. Windows: **Settings → Network & internet → Wi-Fi → (the hotspot) → Network profile type: Private** (hotspots often join as Public).
 3. Start the PC app: `$env:EG_DEMO="1"; $env:EG_COMPANION="1"; .\gradlew.bat :composeApp:run`
-   (drop `EG_DEMO` for real sensors). Bottom-left of the dashboard + console: `Phone: 192.168.x.y:8767 · code 123456`.
+   (drop `EG_DEMO` for real sensors). Desktop **Profile** tab (key 3) + console: `Phone: 192.168.x.y:8767 · code 123456`.
 4. **Windows Firewall prompt** ("Java(TM) Platform SE binary"): tick **Private networks only**, then **Allow**.
    If you once clicked Cancel/Deny: `wf.msc` → Inbound Rules → the `java` / `OpenJDK Platform binary` rules → allow on Private.
 5. Phone: open EnergyGuard → **Connect** on Today (or the **Profile** tab) → type the IP, port `8767`, the code → **Connect**.
    Today follows the PC within ~1 s (green "Live from your PC" chip, Live signals = the PC's webcam / mouse / keyboard rows).
-   Live, Today is read-only (break + sleep are changed on the PC). IP and port are remembered; the code is asked again
+   Live, Today is read-only (breaks start on the PC; sleep is set on the PC's Profile tab). IP and port are remembered; the code is asked again
    after each PC app restart. **Profile → Change PC** to pair another PC.
 - Wrong code → Profile tab "Wrong code". PC app closed / Wi-Fi lost → "Can't reach your PC" card + local demo replay, retries every second.
 - Other options: `EG_COMPANION_PORT` (default 8767), `EG_COMPANION_HOST` (force the IP to listen on, if the dashboard shows the wrong one).

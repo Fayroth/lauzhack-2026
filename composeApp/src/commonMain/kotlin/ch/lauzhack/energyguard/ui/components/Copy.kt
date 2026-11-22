@@ -70,3 +70,58 @@ fun hoursText(h: Double): String {
     val halves = (h * 2).roundToInt()
     return if (halves % 2 == 0) "${halves / 2} h" else "${halves / 2}.5 h"
 }
+
+/** One reason for the hero's state line: [amount] drawn in the state colour, then [what]. */
+data class ShortReason(val amount: String, val what: String)
+
+/**
+ * The engine's reason in a few words for the inline state line (C2): "eyes closing +347%" -> 4.5× "eyes closing",
+ * "long blinks +80%" -> 1.8× "longer blinks", "slower typing +32%" -> −32% "typing". Unknown shapes -> null amount.
+ */
+fun shortReason(reason: String): ShortReason {
+    val m = trailingPercent.find(reason.trim()) ?: return ShortReason("", reason.trim())
+    val what = m.groupValues[1]
+    val pct = m.groupValues[2].toInt()
+    val times = if (pct >= 50) "${factor(pct)}×" else if (pct >= 0) "+$pct%" else "−${abs(pct)}%"
+    return when (what) {
+        "eyes closing" -> ShortReason(times, "eyes closing")
+        "long blinks" -> ShortReason(times, if (pct >= 0) "longer blinks" else "shorter blinks")
+        "blink rate" -> ShortReason(times, "blink rate")
+        "shaky mouse" -> ShortReason(times, "mouse shake")
+        "mouse overshoot" -> ShortReason(times, "mouse overshoot")
+        "more typos" -> ShortReason(times, "typos")
+        "slower typing" -> ShortReason(if (pct >= 0) "−$pct%" else "+${abs(pct)}%", "typing")
+        else -> ShortReason(times, what)
+    }
+}
+
+/** Compact duration for the quiet stats line: "45s", "43m", "1h 12m". */
+fun durationShort(ms: Long): String = durationParts(ms).joinToString(" ") { p ->
+    p.number + if (p.unit == "min") "m" else p.unit
+}
+
+private val WEEKDAYS = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+private val MONTHS = listOf(
+    "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+)
+
+/** "2026-11-22" -> "Sunday 22 November"; anything else passes through. */
+fun dayLabel(dayKey: String): String {
+    val p = dayKey.split("-").mapNotNull { it.toIntOrNull() }
+    if (p.size != 3 || p[1] !in 1..12 || p[2] !in 1..31) return dayKey
+    val (y, m, d) = p
+    // Sakamoto: 0 = Sunday
+    val t = intArrayOf(0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)
+    val yy = if (m < 3) y - 1 else y
+    val dow = (yy + yy / 4 - yy / 100 + yy / 400 + t[m - 1] + d) % 7
+    return "${WEEKDAYS[(dow + 6) % 7]} $d ${MONTHS[m - 1]}"
+}
+
+/** Minutes after midnight -> "08:05" (wraps at 24 h). */
+fun clockLabel(minutesOfDay: Int): String {
+    val m = ((minutesOfDay % 1440) + 1440) % 1440
+    return "${(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}"
+}
+
+/** "last 60 s" (engine window) / "last 10 s" (demo). */
+fun windowShort(windowMs: Long): String = "last ${windowMs / 1000} s"

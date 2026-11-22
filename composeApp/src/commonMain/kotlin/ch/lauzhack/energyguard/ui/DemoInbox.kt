@@ -1,5 +1,13 @@
 package ch.lauzhack.energyguard.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import ch.lauzhack.energyguard.app.ThemeMode
+import ch.lauzhack.energyguard.ui.components.Eg
+import ch.lauzhack.energyguard.ui.components.EgSpace
+import ch.lauzhack.energyguard.ui.components.EgTheme
+import ch.lauzhack.energyguard.ui.components.EgType
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -99,9 +107,11 @@ private sealed interface InboxScreen {
     data class Blocked(val verdict: Verdict.Block) : InboxScreen
 }
 
-private val LinkBlue = Color(0xFF8AB4FF)
-private val BlockRed = Color(0xFFB3261E)
-private val WarnAmber = Color(0xFFF29E5C)
+// C2 tokens only: links in ice, Warn in the TIRED colour, Block on the EXHAUSTED fill with dark text.
+private val LinkBlue: Color @Composable get() = Eg.colors.ice
+private val BlockRed: Color @Composable get() = Eg.colors.exhaustedFill
+private val WarnAmber: Color @Composable get() = Eg.colors.tired
+private val OnBlock: Color @Composable get() = Eg.colors.onAccent
 
 /**
  * Demo inbox for the guardrail scene (#13). Every link click goes through `LocalGuard.current`:
@@ -123,12 +133,12 @@ fun DemoInbox() {
         }
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(background = Warm.Night, surface = Warm.Surface)) {
+    EgTheme(if (Warm.light) ThemeMode.LIGHT else ThemeMode.DARK) {
         Box(Modifier.fillMaxSize().background(Warm.Night)) {
             Row(Modifier.fillMaxSize()) {
                 // Left: the email list.
                 Column(Modifier.weight(0.38f).fillMaxHeight().background(Warm.Deep).padding(vertical = 24.dp)) {
-                    Text("Inbox", fontSize = 36.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text,
+                    Text("Inbox", style = EgType.screenTitle, color = Warm.Text,
                         modifier = Modifier.padding(horizontal = 24.dp))
                     Spacer(Modifier.height(16.dp))
                     DemoEmails.forEachIndexed { i, email ->
@@ -163,12 +173,12 @@ fun DemoInbox() {
 private fun EmailRow(email: DemoEmail, isSelected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier.fillMaxWidth()
-            .background(if (isSelected) Warm.Surface else Color.Transparent)
+            .background(if (isSelected) Eg.colors.raised else Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(email.from.substringBefore(" <"), fontSize = 22.sp, fontWeight = FontWeight.SemiBold,
+            Text(email.from.substringBefore(" <"), style = EgType.bodyStrong.copy(fontSize = 21.sp, lineHeight = 28.sp),
                 color = Warm.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Text(email.time, fontSize = 18.sp, color = Warm.Muted)
         }
@@ -179,7 +189,7 @@ private fun EmailRow(email: DemoEmail, isSelected: Boolean, onClick: () -> Unit)
 @Composable
 private fun EmailView(email: DemoEmail, onLinkClick: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        Text(email.subject, fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+        Text(email.subject, style = EgType.screenTitle, color = Warm.Text)
         Spacer(Modifier.height(12.dp))
         Text("From: ${email.from}", fontSize = 22.sp, color = Warm.Muted)
         Spacer(Modifier.height(32.dp))
@@ -201,11 +211,11 @@ private fun EmailView(email: DemoEmail, onLinkClick: () -> Unit) {
 @Composable
 private fun PageOpenedView(href: String, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Page opened", fontSize = 44.sp, fontWeight = FontWeight.SemiBold, color = Warm.Brand)
+        Text("Page opened", style = EgType.screenTitle.copy(fontSize = 44.sp, lineHeight = 50.sp), color = Warm.Brand)
         Spacer(Modifier.height(16.dp))
         Text(href, fontSize = 26.sp, color = Warm.Muted)
         Spacer(Modifier.height(40.dp))
-        BigButton("Back to inbox", Warm.Surface, onBack)
+        BigButton("Back to inbox", Eg.colors.raised, onBack, textColor = Warm.Text)
     }
 }
 
@@ -219,19 +229,19 @@ private fun Signals(signals: List<String>, color: Color) {
 private fun WarnDialog(v: Verdict.Warn, onBack: () -> Unit, onOpenAnyway: () -> Unit) {
     Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)).clickable(enabled = false) {}, contentAlignment = Alignment.Center) {
         Column(
-            Modifier.widthIn(max = 900.dp).background(Warm.Surface, RoundedCornerShape(20.dp)).padding(40.dp)
+            Modifier.widthIn(max = 900.dp)
+                .background(Brush.verticalGradient(listOf(Eg.colors.cardTop, Eg.colors.cardBottom)), RoundedCornerShape(EgSpace.radius))
+                .border(1.dp, Eg.colors.border, RoundedCornerShape(EgSpace.radius)).padding(40.dp)
         ) {
             Text("Are you sure?", fontSize = 26.sp, color = WarnAmber, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(12.dp))
-            Text(v.reason, fontSize = 38.sp, fontWeight = FontWeight.Bold, color = Warm.Text, lineHeight = 46.sp)
+            Text(v.reason, style = EgType.screenTitle.copy(fontSize = 38.sp, lineHeight = 46.sp), color = Warm.Text)
             Spacer(Modifier.height(20.dp))
             Signals(v.signals, Warm.Text)
             Spacer(Modifier.height(32.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                 BigButton("Go back", Warm.Brand, onBack)
-                OutlinedButton(onClick = onOpenAnyway) {
-                    Text("Open anyway", fontSize = 22.sp, color = Warm.Muted, modifier = Modifier.padding(8.dp))
-                }
+                BigButton("Open anyway", Eg.colors.raised, onOpenAnyway, textColor = Warm.Muted)
             }
         }
     }
@@ -244,19 +254,22 @@ private fun BlockScreen(v: Verdict.Block, onBack: () -> Unit) {
         Modifier.fillMaxSize().background(BlockRed).clickable(enabled = false) {}.padding(64.dp),
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("BLOCKED BY ENERGYGUARD", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.8f))
+        Text("BLOCKED BY ENERGYGUARD", style = EgType.ringName.copy(fontSize = 28.sp, lineHeight = 34.sp), color = OnBlock.copy(alpha = 0.8f))
         Spacer(Modifier.height(16.dp))
-        Text(v.reason, fontSize = 52.sp, fontWeight = FontWeight.Bold, color = Color.White, lineHeight = 62.sp)
+        Text(v.reason, style = EgType.screenTitle.copy(fontSize = 52.sp, lineHeight = 62.sp), color = OnBlock)
         Spacer(Modifier.height(32.dp))
-        Signals(v.signals, Color.White)
+        Signals(v.signals, OnBlock)
         Spacer(Modifier.height(48.dp))
-        BigButton("Go back", Color.White, onBack, textColor = BlockRed)
+        BigButton("Go back", OnBlock, onBack, textColor = BlockRed)
     }
 }
 
 @Composable
-private fun BigButton(label: String, color: Color, onClick: () -> Unit, textColor: Color = Warm.Night) {
-    Button(onClick = onClick, colors = ButtonDefaults.buttonColors(containerColor = color)) {
+private fun BigButton(label: String, color: Color, onClick: () -> Unit, textColor: Color = Eg.colors.onAccent) {
+    Button(
+        onClick = onClick, shape = CircleShape, colors = ButtonDefaults.buttonColors(containerColor = color),
+        modifier = Modifier.border(1.dp, Eg.colors.border, CircleShape),
+    ) {
         Text(label, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, color = textColor, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }

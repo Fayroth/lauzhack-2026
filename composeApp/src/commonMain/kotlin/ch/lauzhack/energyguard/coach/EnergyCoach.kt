@@ -20,7 +20,11 @@ data class CoachInput(
     val sleepPriorHours: Double?,  // "sleep last night" (null if unknown)
     val localTime: String,         // "HH:mm", local
     val minutesSinceBreak: Int? = null, // since session start or the last recovery (null if unknown)
+    val checkIn: CoachCheckIn? = null,  // today's latest journal check-in (M4), numbers only
 )
+
+/** What the coach may know of the journal: three numbers. No text field on purpose, so the private note can't get in. */
+data class CoachCheckIn(val kss: Int?, val stress: Int?, val caffeine: Int?)
 
 /** BREAK = 5 min away from the screen, STAND_UP = stand up / walk a bit (#29), RECOVERED = concentration came back. */
 enum class Intervention { BREAK, STAND_UP, RECOVERED }
@@ -79,6 +83,7 @@ class FrugalEnergyCoach(
         localTime: String,
         sleepPriorHours: Double? = null,
         minutesSinceBreak: Int? = null,
+        checkIn: CoachCheckIn? = null,
     ): CoachMessage? {
         val previous = level
         level = state.level
@@ -87,7 +92,7 @@ class FrugalEnergyCoach(
         val minutes = minutesSinceBreak?.coerceAtLeast(0) ?: ((now - breakSinceMs) / 60_000).toInt()
         if (state.level < previous && state.level <= Level.OK) breakSinceMs = now // concentration came back = they rested
         if (previous < Level.TIRED && state.level < Level.TIRED) return null
-        return advise(CoachInput(state, previous, sleepPriorHours, localTime, minutes))
+        return advise(CoachInput(state, previous, sleepPriorHours, localTime, minutes, checkIn))
     }
 
     override suspend fun advise(input: CoachInput): CoachMessage {
@@ -149,6 +154,11 @@ class FrugalEnergyCoach(
             appendLine("local time: ${safeTime(input.localTime)}")
             input.minutesSinceBreak?.let { appendLine("minutes since last break: $it") }
             input.sleepPriorHours?.let { appendLine("sleep last night: ${(it * 10).roundToInt() / 10.0} h") }
+            input.checkIn?.let { c -> // re-validated: only in-range integers reach the prompt
+                c.kss?.takeIf { it in 1..9 }?.let { appendLine("self-rated sleepiness (KSS 1-9): $it") }
+                c.stress?.takeIf { it in 1..5 }?.let { appendLine("self-rated stress (1-5): $it") }
+                c.caffeine?.takeIf { it in 0..20 }?.let { appendLine("caffeine today: $it cups") }
+            }
             append("intervention: ").append(
                 when (kind) {
                     Intervention.BREAK -> "BREAK (5 minutes away from the screen)"

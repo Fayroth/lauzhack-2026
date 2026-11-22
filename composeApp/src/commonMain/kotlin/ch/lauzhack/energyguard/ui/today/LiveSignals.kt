@@ -1,20 +1,19 @@
 package ch.lauzhack.energyguard.ui.today
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import ch.lauzhack.energyguard.model.Level
+import ch.lauzhack.energyguard.ui.components.Sparkline
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +24,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.lauzhack.energyguard.app.AppState
@@ -159,81 +157,76 @@ private fun oneDecimalText(x: Double): String {
 /**
  * "The webcam is the eyes of the AI": the raw signals feeding the score, refreshed once per second
  * (vision arrives at ~10 Hz, too fast to read). Numbers only; keyboard = timings, never contents.
- * [stacked] (phone): each row puts its numbers under the label instead of beside it, so nothing is cut.
+ * C2: Eyes / Mouse / Keys = name + value on the right, a sparkline of the last ~60 s under each
+ * (eyes in the state colour of [level], the others neutral).
  */
 @Composable
-fun LiveSignalsCard(signals: SignalsSnapshot, modifier: Modifier = Modifier, stacked: Boolean = false) {
+fun LiveSignalsCard(signals: SignalsSnapshot, modifier: Modifier = Modifier, level: Level = Level.FRESH, fill: Boolean = true) {
     val c = Eg.colors
-    val s = sampledEverySecond(signals)
+    val (s, history) = sampledEverySecond(signals)
     EgCard(modifier) {
         CardTitle("Live signals") {
-            Text(s.source ?: "-", style = EgType.label, color = c.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(s.source ?: "-", style = EgType.small, color = c.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.size(4.dp))
-        Column {
-            SignalRow("Eyes", eyesLine(s), stacked)
-            SignalRow("Mouse", mouseLine(s), stacked)
-            SignalRow("Keyboard", keyboardLine(s), stacked)
-        }
+        Spacer(Modifier.height(10.dp))
+        val row = if (fill) Modifier.fillMaxWidth().weight(1f) else Modifier.fillMaxWidth().height(58.dp)
+        SignalRow("Eyes", eyesLine(s), history.eyes, c.level(level), row)
+        SignalRow("Mouse", mouseLine(s), history.mouse, c.spark, row)
+        SignalRow("Keys", keyboardLine(s), history.keys, c.spark, row)
     }
 }
 
 @Composable
-private fun SignalRow(label: String, line: SignalLine, stacked: Boolean) {
+private fun SignalRow(label: String, line: SignalLine, values: List<Double>, color: Color, modifier: Modifier) {
     val c = Eg.colors
-    if (stacked) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                LiveDot(line.live)
-                Spacer(Modifier.width(12.dp))
-                Text(label, style = EgType.bodyStrong, color = c.text, modifier = Modifier.weight(1f))
-                line.flag?.let { Text(it, style = EgType.label, color = if (line.flagWarn && line.live) c.tired else c.muted) }
-            }
+    Column(modifier, verticalArrangement = Arrangement.Center) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = EgType.bodyStrong, color = if (line.live) c.text else c.muted)
+            Spacer(Modifier.width(EgSpace.s))
+            Spacer(Modifier.weight(1f))
+            val warn = line.flagWarn && line.live && line.flag != null
             Text(
-                line.text ?: "-", style = EgType.body, color = if (line.live) c.text else c.muted,
-                modifier = Modifier.padding(start = 22.dp),
+                buildAnnotatedString {
+                    append(line.text ?: line.flag ?: "–")
+                    if (warn) withStyle(SpanStyle(color = c.tired)) { append(" · ${line.flag}") }
+                },
+                style = EgType.label, color = if (line.live) c.text else c.label,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
             )
         }
-        return
-    }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        LiveDot(line.live)
-        Spacer(Modifier.width(12.dp))
-        Text(label, style = EgType.bodyStrong, color = c.text, modifier = Modifier.width(88.dp))
-        Text(
-            line.text ?: "-", style = EgType.body, color = if (line.live) c.text else c.muted,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
-        )
-        line.flag?.let {
-            Spacer(Modifier.width(EgSpace.xs))
-            Text(it, style = EgType.label, color = if (line.flagWarn && line.live) c.tired else c.muted)
-        }
+        Spacer(Modifier.height(6.dp))
+        Sparkline(if (line.live) values else emptyList(), if (line.live) color else c.track, Modifier.fillMaxWidth().height(18.dp))
     }
 }
 
-/** Accent dot breathing slowly while data flows; flat grey when there is none. */
-@Composable
-private fun LiveDot(live: Boolean) {
-    val c = Eg.colors
-    val pulse by rememberInfiniteTransition(label = "liveDot").animateFloat(
-        1f, 0.35f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "liveDotAlpha",
+/** The last [HISTORY_S] once-a-second values of each row (null = gap, not drawn). */
+private data class SignalHistory(val eyes: List<Double> = emptyList(), val mouse: List<Double> = emptyList(), val keys: List<Double> = emptyList()) {
+    fun push(s: SignalsSnapshot) = SignalHistory(
+        eyes.add(s.perclosPct?.toDouble() ?: s.blinksPerMin?.toDouble()),
+        mouse.add(s.jitterX ?: s.jitterPerS),
+        keys.add(s.msPerKey?.toDouble()),
     )
-    Box(Modifier.size(10.dp).alpha(if (live) pulse else 1f).background(if (live) c.accent else c.muted.copy(alpha = 0.5f), CircleShape))
+
+    private fun List<Double>.add(v: Double?) = if (v == null || !v.isFinite()) this else (this + v).takeLast(HISTORY_S)
 }
 
-/** [value] as of the last whole second: the card ticks at 1 Hz whatever the source rate. */
+private const val HISTORY_S = 60
+
+/** [value] as of the last whole second (the card ticks at 1 Hz whatever the source rate) + the sparkline history. */
 @Composable
-private fun sampledEverySecond(value: SignalsSnapshot): SignalsSnapshot {
+private fun sampledEverySecond(value: SignalsSnapshot): Pair<SignalsSnapshot, SignalHistory> {
     val latest by rememberUpdatedState(value)
     var shown by remember { mutableStateOf(value) }
+    var history by remember { mutableStateOf(SignalHistory().push(value)) }
     LaunchedEffect(Unit) {
         while (true) {
             shown = latest
+            history = history.push(latest)
             delay(1_000)
         }
     }
     // A source appearing / disappearing shows at once; only changing numbers are throttled.
-    return if (shown.presence() != value.presence()) value else shown
+    return (if (shown.presence() != value.presence()) value else shown) to history
 }
 
 private fun SignalsSnapshot.presence() = Triple(face, typing, jitterPerS != null || precisionPct != null)
