@@ -280,14 +280,14 @@ fun main() = application {
                 onCloseRequest = { showInbox = false },
                 title = "EnergyGuard — Inbox",
                 icon = rememberVectorPainter(remember { energyGuardIcon() }),
-                state = rememberWindowState(width = 1280.dp, height = 800.dp),
+                state = rememberWindowState(size = defaultWindowSize(1280, 800)), // fits a 1280x720 projector too
             ) { DemoInbox() }
         }
     }
 }
 
 /** 1440x900 (design size), shrunk to the usable screen (taskbar excluded) on small or scaled displays, e.g. 1920x1200 at 125 %. */
-private fun defaultWindowSize(): DpSize {
+private fun defaultWindowSize(w: Int = 1440, h: Int = 900): DpSize {
     val screen = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds // in dp on Windows / macOS
-    return DpSize(minOf(1440, screen.width).dp, minOf(900, screen.height - 24).dp) // the UI scales to fit (DesktopShell)
+    return DpSize(minOf(w, screen.width).dp, minOf(h, screen.height - 24).dp) // the UI scales to fit (DesktopShell)
 }

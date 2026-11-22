@@ -87,6 +87,10 @@ class CompanionServer(val endpoint: CompanionEndpoint, val lanHost: String?, val
     /** Never throws: a busy port or a missing LAN address only means the phone shows "Not connected". */
     fun start(): Boolean {
         for (host in listOfNotNull(lanHost, LOOPBACK).distinct()) {
+            if (!ch.lauzhack.energyguard.guard.portFree(host, port)) {
+                System.err.println("[companion] port $port is busy on $host: is another EnergyGuard window still open?")
+                continue
+            }
             try {
                 servers += embeddedServer(CIO, host = host, port = port) {
                     intercept(ApplicationCallPipeline.Call) {
