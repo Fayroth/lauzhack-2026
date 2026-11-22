@@ -22,11 +22,13 @@ import kotlin.math.sqrt
  *  1. Calibration: the first [calibrationMs] *with a face* (or of input time if no vision sidecar is running)
  *     builds a personal baseline (mean/std) per signal.
  *  2. Each signal is averaged over a rolling [windowMs] window and compared to its baseline as a z-score,
- *     clipped to [0, 3] (blink rate is two-sided: both more and fewer blinks count).
+ *     clipped to [0, 3]. One-sided for every signal: only a change in the fatigue direction counts. For the blink rate that
+ *     is MORE blinks (rate rises with sleepiness); fewer blinks mean focused reading/screen work, not fatigue.
  *  3. Weighted average of the z-scores, renormalized over the signals that are actually available
  *     (no face, no keyboard, no gaze tracker = those signals just drop out, no bias).
  *  4. Time-based EMA smoothing, then levels with hysteresis (±[MARGIN] around 25/50/75).
- *  5. Eyes closed > 1 s (micro-sleep) → instant TIRED.
+ *  5. Eyes closed > 1 s (micro-sleep) → instant TIRED. If the face is lost while the eyes have been closed >= 0.5 s
+ *     (head dropping), the closure keeps counting for up to [FACE_LOSS_HOLD_MS].
  *
  * Not thread-safe: call onVision/onInput from one thread (the Compose main dispatcher does that).
  */
@@ -38,10 +40,10 @@ class FatigueEngine(
     private val _state = MutableStateFlow(FatigueState.Initial)
     val state: StateFlow<FatigueState> = _state.asStateFlow()
 
-    private enum class Sig(val weight: Double, val minStd: Double, val twoSided: Boolean = false) {
+    private enum class Sig(val weight: Double, val minStd: Double) {
         PERCLOS(30.0, 0.03),
         BLINK_MS(20.0, 40.0),
-        BLINK_RATE(10.0, 3.0, twoSided = true),
+        BLINK_RATE(10.0, 3.0),
         JITTER(15.0, 0.05),
         OVERSHOOT(10.0, 0.05),
         BACKSPACE(9.0, 0.02),    // keyboard = 15 in total
@@ -92,6 +94,7 @@ class FatigueEngine(
     private var lastVisionTs: Long? = null
     private var lastInputTs: Long? = null
     private var eyesClosedSince: Long? = null
+    private var lastClosedFaceTs: Long? = null // last frame WITH a face and the eyes closed
     private var ema = 0.0
     private var lastEmaTs: Long? = null
     private var level = Level.FRESH
@@ -108,11 +111,21 @@ class FatigueEngine(
             frame.blinkCount?.let { add(Sig.BLINK_RATE, ts, it.toDouble()) }
             frame.offScreenRatio?.let { add(Sig.OFF_SCREEN, ts, it) }
             frame.handNearEyes?.let { add(Sig.HAND_NEAR_EYES, ts, if (it) 1.0 else 0.0) }
-            eyesClosedSince = if (frame.eyesClosed == true) (eyesClosedSince ?: ts) else null
+            if (frame.eyesClosed == true) {
+                eyesClosedSince = eyesClosedSince ?: ts
+                lastClosedFaceTs = ts
+            } else {
+                eyesClosedSince = null
+            }
         } else {
-            // No face: ignore the frame. No calibration credit across the gap, no micro-sleep.
+            // No face: no calibration credit across the gap. A micro-sleep that was already under way (eyes closed >= 0.5 s,
+            // then the head drops out of view) keeps counting for a short hold; otherwise no face = no micro-sleep.
             lastFaceTs = null
-            eyesClosedSince = null
+            val since = eyesClosedSince
+            val lastClosed = lastClosedFaceTs
+            val headDrop = since != null && lastClosed != null &&
+                lastClosed - since >= HEAD_DROP_MIN_CLOSED_MS && ts - lastClosed <= FACE_LOSS_HOLD_MS
+            if (!headDrop) eyesClosedSince = null
         }
         recompute()
     }
@@ -172,7 +185,7 @@ class FatigueEngine(
             val current = t.windowMean
             val std = maxOf(t.std, sig.minStd, 0.1 * abs(t.mean))
             val raw = (current - t.mean) / std
-            Contribution(sig, (if (sig.twoSided) abs(raw) else raw).coerceIn(0.0, Z_MAX), current, t.mean)
+            Contribution(sig, raw.coerceIn(0.0, Z_MAX), current, t.mean)
         }
         val totalWeight = contributions.sumOf { it.sig.weight }
         val rawScore = if (totalWeight > 0) contributions.sumOf { it.sig.weight * it.z / Z_MAX } / totalWeight * 100 else 0.0
@@ -233,6 +246,8 @@ class FatigueEngine(
         private const val MICRO_SLEEP_MS = 1_000L
         private const val MICRO_SLEEP_SCORE = 60.0
         private const val MAX_VISION_GAP_MS = 1_000L
+        private const val HEAD_DROP_MIN_CLOSED_MS = 500L // micro-sleeps last 0.5-15 s: a 200 ms blink + head turn is not one
+        private const val FACE_LOSS_HOLD_MS = 3_000L
         private const val MAX_INPUT_GAP_MS = 6_000L // > JNativeHookInputSource emit period (5 s)
         private const val VISION_ABSENT_MS = 5_000L
         private const val MIN_BASELINE_N = 3

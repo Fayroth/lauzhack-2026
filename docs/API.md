@@ -34,8 +34,13 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
   `onInput`, so the engine never mixes two clocks (Python vs JVM, or a frame buffered during a hiccup). Latency on localhost ≈ ms.
 - **Sidecar down/restart:** the client retries every 2 s (WebSocket ping every 2 s detects a hung sidecar), never throws;
   meanwhile the engine runs on input only and the UI vision panel shows "-" after 2 s without frames.
-- `ear`: eye aspect ratio (avg of both eyes), `eyesClosed`: ear below calibrated threshold.
-- `blinkCount`: blinks in the last 60 s, `lastBlinkMs`: duration of the last blink.
+- `ear`: eye aspect ratio (avg of both eyes). `eyesClosed`: eye closure >= 60 % (reopen < 30 %), closure = blendshape
+  `eyeBlink` or EAR vs the personal baseline. Partial closure counts on purpose: micro-sleeps (0.5-15 s) happen with the eyes
+  fully or partially closed, and the engine turns > 1 s into TIRED.
+- `blinkCount`: blinks **per minute** over the last 60 s. During the first minute it is extrapolated (`n * 60 / covered s`)
+  and null before 15 s of eye data, so the engine's 60 s calibration does not learn a ramp from 0.
+- `lastBlinkMs`: duration of the last blink. A blink is a 50 ms..1 s closure; longer closures go through `eyesClosed`
+  (micro-sleep path) and are neither counted nor reported as blinks.
 - `perclos`: fraction of the last 60 s with eyes >= 80 % closed.
 - `source`: which perception path produced the eye metrics:
   `"logiinsight-rgb"` (LogiInsight SDK face mesh on the RGB stream), `"logiinsight-ir"` (same on the IR stream: low light / glasses),
@@ -95,7 +100,12 @@ class FatigueEngine {
 ```
 - Calibration: first 60 s *with a face* (or 60 s of input if no vision sidecar at all) → per-signal baseline.
 - Signals missing (no face, no typing, no gaze/hands tracker) are dropped and weights renormalized.
-- Eyes closed > 1 s → instant `TIRED` (reason `"eyes closed 1.2 s"`).
+- Every signal is one-sided: only a change in the fatigue direction scores. Blink rate counts when it RISES (rises with
+  sleepiness); a drop (focused reading / screen work lowers the blink rate) does not count as fatigue.
+- Eyes closed > 1 s → instant `TIRED` (reason `"eyes closed 1.2 s"`). If the face disappears after the eyes have been
+  closed >= 0.5 s (head dropping), the closure keeps counting for up to 3 s; a normal blink + head turn does not.
+- `FatigueState.concentration = 100 - score` is what the gauge ("Concentration"), the coach and the guardrail show.
+  The word "energy" is only used for the slow `EnergyBattery`.
 - Levels use hysteresis: up at 30/55/80, down below 20/45/70.
 - Read-only `fun baselineSummary(): BaselineSummary` (for the Profile tab, no behaviour change):
   ```kotlin
@@ -154,7 +164,8 @@ interface EnergyCoach {
 }
 ```
 Implementation: `FrugalEnergyCoach(llm: LlmClient?)` in `coach/EnergyCoach.kt` (`llm = null` → templates only).
-- `suspend fun onFatigue(state, localTime, sleepPriorHours = null): CoachMessage?` — feed every state; it tracks the
+- `suspend fun onFatigue(state, localTime, sleepPriorHours = null, minutesSinceBreak = null): CoachMessage?` — the shells pass
+  `SleepPrior.hours` and `AppStore` `currentFocusMs / 60 000` (real breaks reset it); feed every state; it tracks the
   previous level itself and returns `null` unless the level changed **and** TIRED/EXHAUSTED is involved (FRESH ↔ OK is silent,
   so the LLM budget is kept for the moments that matter). `reset()` forgets the level (demo F5), never the rate limit or counter.
 - `val lastMessage: StateFlow<CoachMessage?>` + `val llmCallCount: StateFlow<Int>` → `DashboardState.coach` / `DashboardState.llmCallCount`
@@ -180,7 +191,7 @@ Real implementation (`MxMaster4HapticOutput`, `EG_HAPTICS=mx`): sends HID report
 Also: one WARNING every time the Guardrail returns `Block` (see below).
 
 ## Guardrail (commonMain, `guardrail/Guardrail.kt`)
-"Double vigilance": a risky action is checked harder when energy is low. Pure and deterministic: no ML, no network, no clock.
+"Double vigilance": a risky action is checked harder when concentration is low. Pure and deterministic: no ML, no network, no clock.
 ```kotlin
 sealed interface GuardedAction {
     /** A link click. displayText = what the user sees, href = where it really goes, context = email subject + body (optional). */
@@ -234,7 +245,7 @@ so the Chrome extension in `extension/` protects real link clicks (incl. real Gm
 ```
 → `200`
 ```json
-{ "verdict": "block", "reason": "Blocked: this looks like phishing and your energy is low (38%). ...",
+{ "verdict": "block", "reason": "Blocked: this looks like phishing and your concentration is low (38%). ...",
   "signals": ["The link text says paypal.com but it actually goes to paypa1-secure.com", "..."], "level": "TIRED" }
 ```
 - `verdict`: `"allow" | "warn" | "block"` (Verdict.Allow / Warn / Block). Allow → `reason = ""`, `signals = []`.
@@ -376,7 +387,8 @@ must post `onGuardBlock()` to the main thread.
 
 ### RecoveryScore (0–100, `app/Recovery.kt`)
 Weighted mean of the components present, weights renormalized over them:
-- **Sleep 50 %:** `clamp((h - 4) / 4, 0, 1) * 100` (4 h = 0, 6 h = 50, ≥ 8 h = 100).
+- **Sleep 50 %:** `clamp((h - 4) / 3, 0, 1) * 100` (4 h = 0, 5.5 h = 50, ≥ 7 h = 100: the AASM/SRS "7 or more hours"
+  recommendation, the same 7 h reference as `EnergyBattery` and `SleepPrior`).
 - **Breaks 30 %:** `needed = floor(focusedMs / 60 min)`; `needed == 0` → 100, else `min(1, taken / needed) * 100`.
 - **Journal check-in 20 % (optional):** latest entry of today with a KSS or a stress value: mean of
   `(9 - kss) / 8 * 100` and `(5 - stress) / 4 * 100` (those present). No such entry → weights become 62.5 % / 37.5 %.

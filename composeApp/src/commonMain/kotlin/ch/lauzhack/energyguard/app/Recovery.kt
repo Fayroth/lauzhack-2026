@@ -12,7 +12,7 @@ object RecoveryScore {
     const val W_CHECK_IN = 0.2
     const val BREAK_EVERY_MS = 3_600_000L // one break needed per hour of focus
     const val SLEEP_ZERO_HOURS = 4.0      // 4 h -> 0
-    const val SLEEP_FULL_HOURS = 8.0      // >= 8 h -> 100
+    const val SLEEP_FULL_HOURS = 7.0      // >= 7 h -> 100: AASM/SRS adult recommendation, same 7 h as EnergyBattery and SleepPrior
 
     fun sleepComponent(hours: Double): Double {
         if (!hours.isFinite()) return 0.0

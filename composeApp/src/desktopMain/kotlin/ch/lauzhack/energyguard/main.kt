@@ -50,6 +50,7 @@ import ch.lauzhack.energyguard.haptics.MxMaster4HapticOutput
 import ch.lauzhack.energyguard.input.JNativeHookInputSource
 import ch.lauzhack.energyguard.input.MockInputSource
 import ch.lauzhack.energyguard.model.InputStats
+import ch.lauzhack.energyguard.model.SleepPrior
 import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.BreakAlertOverlay
 import ch.lauzhack.energyguard.ui.DashboardState
@@ -182,7 +183,8 @@ fun main() = application {
     LaunchedEffect(engine) { // sequential collect: an in-flight LLM call (<= 5 s, off the UI thread) is never cancelled
         coach.reset()
         engine.state.collect { s ->
-            coach.onFatigue(s, localTimeHHmm())?.let { println("[coach] ${if (it.fromLlm) "llm" else "template"} ${it.kind}: ${it.text}") }
+            val focusMin = (store.state.value.stats.currentFocusMs / 60_000).toInt() // breaks taken in the app count
+            coach.onFatigue(s, localTimeHHmm(), SleepPrior.hours, focusMin)?.let { println("[coach] ${if (it.fromLlm) "llm" else "template"} ${it.kind}: ${it.text}") }
         }
     }
 

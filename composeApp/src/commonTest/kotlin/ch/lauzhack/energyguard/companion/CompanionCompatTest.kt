@@ -60,7 +60,7 @@ class CompanionCompatTest {
         assertNull(s.energy)
         assertNull(s.recovery)
         assertNull(s.stats)
-        assertEquals(60, s.toDashboardState().fatigue.energy, "old fields map exactly as before")
+        assertEquals(60, s.toDashboardState().fatigue.concentration, "old fields map exactly as before")
     }
 
     @Test fun journalNeverLeavesTheDevice() {

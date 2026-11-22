@@ -10,7 +10,8 @@ class RecoveryScoreTest {
 
     @Test fun components() {
         assertEquals(0.0, RecoveryScore.sleepComponent(4.0))
-        assertEquals(50.0, RecoveryScore.sleepComponent(6.0))
+        assertEquals(50.0, RecoveryScore.sleepComponent(5.5))
+        assertEquals(100.0, RecoveryScore.sleepComponent(7.0), "7 h = the recommended minimum = full")
         assertEquals(100.0, RecoveryScore.sleepComponent(9.0))
         assertEquals(0, RecoveryScore.breaksNeeded(59 * MIN))
         assertEquals(2, RecoveryScore.breaksNeeded(2 * HOUR + 30 * MIN))
@@ -25,16 +26,16 @@ class RecoveryScoreTest {
     }
 
     @Test fun weights() {
-        // sleep 6 h = 50, breaks 1/2 = 50, check-in KSS 1 = 100 -> 0.5*50 + 0.3*50 + 0.2*100 = 60
-        assertEquals(60, RecoveryScore.compute(6.0, breaksTaken = 1, breaksNeeded = 2, checkIn = entry(kss = 1)))
+        // sleep 5.5 h = 50, breaks 1/2 = 50, check-in KSS 1 = 100 -> 0.5*50 + 0.3*50 + 0.2*100 = 60
+        assertEquals(60, RecoveryScore.compute(5.5, breaksTaken = 1, breaksNeeded = 2, checkIn = entry(kss = 1)))
         // all perfect
         assertEquals(100, RecoveryScore.compute(8.0, 0, 0, entry(kss = 1, stress = 1)))
     }
 
     @Test fun renormalizedWithoutCheckIn() {
         // sleep 50, breaks 100, no check-in -> (0.5*50 + 0.3*100) / 0.8 = 68.75 -> 69
-        assertEquals(69, RecoveryScore.compute(6.0, 0, 0, null))
-        assertEquals(69, RecoveryScore.compute(6.0, 0, 0, entry(caffeine = 3)), "entry without KSS/stress = absent")
+        assertEquals(69, RecoveryScore.compute(5.5, 0, 0, null))
+        assertEquals(69, RecoveryScore.compute(5.5, 0, 0, entry(caffeine = 3)), "entry without KSS/stress = absent")
         // sleep 0, breaks 0/3 -> 0
         assertEquals(0, RecoveryScore.compute(4.0, 0, 3, null))
     }
@@ -42,7 +43,7 @@ class RecoveryScoreTest {
     @Test fun storeUsesTodaysLatestCheckIn() {
         val clock = TestClock()
         val store = clock.store()
-        store.setSleepHours(6.0)
+        store.setSleepHours(5.5)
         assertEquals(69, store.state.value.recovery)
         store.addJournalEntry(kss = 1)
         assertEquals(60 + 15, store.state.value.recovery, "0.5*50 + 0.3*100 + 0.2*100 = 75")

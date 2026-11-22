@@ -55,8 +55,8 @@ data class FatigueState(
     val reasons: List<String>,   // e.g. ["long blinks", "mouse jitter +40%"]
     val calibrated: Boolean,
 ) {
-    /** What the gauge shows: 100 % energy = fresh. */
-    val energy: Int get() = 100 - score
+    /** What the gauge shows ("Concentration"): 100 = fresh. Not the energy battery (AppStore), which is slow over the day. */
+    val concentration: Int get() = 100 - score
 
     companion object {
         val Initial = FatigueState(score = 0, level = Level.FRESH, reasons = emptyList(), calibrated = false)
