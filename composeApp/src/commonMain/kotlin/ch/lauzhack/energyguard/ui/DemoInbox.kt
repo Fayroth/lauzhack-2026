@@ -173,7 +173,7 @@ fun DemoInbox() {
 private fun EmailRow(email: DemoEmail, isSelected: Boolean, onClick: () -> Unit) {
     Column(
         Modifier.fillMaxWidth()
-            .background(if (isSelected) Eg.colors.raised else Color.Transparent)
+            .background(if (isSelected) Eg.colors.accent.copy(alpha = 0.16f) else Color.Transparent) // raised is invisible in light
             .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 16.dp)
     ) {

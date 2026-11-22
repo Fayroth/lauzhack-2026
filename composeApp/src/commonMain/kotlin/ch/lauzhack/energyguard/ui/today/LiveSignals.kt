@@ -39,7 +39,7 @@ import kotlinx.coroutines.delay
 import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 
-/** One row of the Live signals card: [text] is null when there is no data (grey dot, "-"). */
+/** One row of the Live signals card: [text] is null when there is no data (grey, "no data" unless a [flag] says why). */
 data class SignalLine(val text: String?, val flag: String? = null, val flagWarn: Boolean = false) {
     val live get() = text != null
 }
@@ -187,7 +187,7 @@ private fun SignalRow(label: String, line: SignalLine, values: List<Double>, col
             val warn = line.flagWarn && line.live && line.flag != null
             Text(
                 buildAnnotatedString {
-                    append(line.text ?: line.flag ?: "–")
+                    append(line.text ?: line.flag ?: "no data")
                     if (warn) withStyle(SpanStyle(color = c.tired)) { append(" · ${line.flag}") }
                 },
                 style = EgType.label, color = if (line.live) c.text else c.label,

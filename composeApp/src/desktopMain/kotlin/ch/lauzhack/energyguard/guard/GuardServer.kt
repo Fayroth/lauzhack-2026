@@ -111,7 +111,10 @@ class GuardServer(private val endpoint: GuardEndpoint, private val port: Int) {
     private var server: EmbeddedServer<*, *>? = null
 
     /** Never throws: if the port is busy the app keeps running and Chrome links just open unguarded (fail open). */
-    fun start(): Boolean = try {
+    fun start(): Boolean = if (!portFree("127.0.0.1", port)) {
+        System.err.println("[guard] port $port is busy: is another EnergyGuard window still open? Close it, or Chrome links go to that one")
+        false
+    } else try {
         server = embeddedServer(CIO, host = "127.0.0.1", port = port) {
             intercept(ApplicationCallPipeline.Call) {
                 val req = call.request
@@ -147,4 +150,15 @@ class GuardServer(private val endpoint: GuardEndpoint, private val port: Int) {
             return GuardServer(GuardEndpoint(guard, level, id, port), port)
         }
     }
+}
+
+/**
+ * True if [host]:[port] can be bound now. Checked before starting Ktor, whose failed bind dumps a stack trace from a
+ * worker thread (a second app window left open is the usual cause). Tiny race window, harmless: start() still catches.
+ */
+internal fun portFree(host: String, port: Int): Boolean = try {
+    java.net.ServerSocket().use { it.bind(java.net.InetSocketAddress(host, port)) }
+    true
+} catch (e: java.io.IOException) {
+    false
 }

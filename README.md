@@ -1,9 +1,10 @@
-# Project name — LauzHack 2026
+# EnergyGuard — LauzHack 2026
 
-> One sentence: what it does and for whom.
+> Your devices notice when you're getting tired (eyes, mouse, keyboard), help you before you crash, and raise your
+> guard when a tired mistake would cost you (phishing click, wrong payment, wrong email).
 
 **Team:** Ali · Mehdi · Zyad · Isma
-**Sponsor challenge:** _none / name of the challenge_
+**Sponsor challenges:** Logitech (webcam as the eyes of AI, MX Master 4 haptics) · JetBrains (Kotlin Multiplatform: desktop + Android) · AXA (frugal multimodal AI)
 
 ## The problem
 _2–3 sentences. Who suffers, how much, why existing solutions don't cut it._
@@ -11,72 +12,93 @@ _2–3 sentences. Who suffers, how much, why existing solutions don't cut it._
 ## Our solution
 _2–3 sentences + a screenshot or GIF._
 
-## Demo
-1. _Step 1 of the demo_
-2. _Step 2_
-3. _The "wow" moment_
+## Demo script (2 minutes)
+Start: `$env:EG_DEMO="1"; .\gradlew.bat :composeApp:run` (add `$env:EG_HAPTICS="mx"` for the real MX Master 4).
+Two windows open: the dashboard and "EnergyGuard — Inbox". Keys work on the dashboard window: **1 / 2 / 3** = Today /
+Journal / Profile, **F2** = reopen the inbox, **F5** = replay the demo from 0.
+
+| Time | What happens | What you do / say |
+|------|--------------|-------------------|
+| 0–15 s | Concentration ring shows "15s learning", chip "Calibrating… 15 s" | "It first learns *your* normal blinks, mouse and typing." |
+| 15–60 s | **Fresh**: high concentration, Live signals moving (eyes / mouse / keys) | Point at Live signals: "numbers only, computed on this PC" |
+| ~60 s | **Tired**: ring turns amber, reasons (e.g. "2.6× eyes closing · −30% typing"), break card slides up, mouse vibrates (GENTLE) | Read the coach note out loud. Click **I'll take it** |
+| ~70 s | Switch to the **Inbox** window, open the PayPal email, click the link | **Blocked** red screen + mouse pulse: "we raise the guard exactly when you lower yours" |
+| ~90 s | **Exhausted**: ring turns red, mouse vibrates (WARNING). If the break card was left open, 15 s later the full-screen "Stop. Take a break." | Click **I'm taking a break** |
+| end | Stats line: phishing blocked 1, AI calls N, **0 images · audio · keys sent** | Frugality: "AI only on level changes, max 1 call / 10 min" |
+| bonus | **2** Journal (sample check-ins, r = 0.66) · **3** Profile (settings, Phone sharing → address + code on the phone) | |
+
+Lost? Press **F5** (fresh engine, calibration again). The coach is offline templates without `OPENROUTER_API_KEY` (fine for the demo).
 
 Backup demo video: _link_
 
 ## What we built during LauzHack
-_This is what the jury evaluates: be explicit about what is ours._
-- _Feature / component we wrote during the 24h_
-- _..._
+_This is what the jury evaluates: be explicit about what is ours._ Full timeline: `docs/BUILD_LOG.md` → "What we built".
 
 ## Reused resources
-_Libraries, APIs, datasets, templates we used (see `docs/BUILD_LOG.md` for the full list)._
-- _..._
+Libraries, APIs, datasets, fonts: see `docs/BUILD_LOG.md` → "Reused resources".
 
 ## Tech stack
-- _Frontend:_
-- _Backend:_
-- _AI / data:_
+- **App:** Kotlin Multiplatform + Compose Multiplatform (desktop JVM + Android), shared engine and UI in `commonMain`
+- **Perception:** Python sidecar (`vision/`): LogiInsight SDK face mesh on the Logitech prototype, MediaPipe fallback → numbers over WebSocket
+- **AI:** personal-baseline fatigue fusion (`FatigueEngine`, explainable reasons) + frugal LLM coach (OpenRouter, max 1 call / 10 min, offline templates)
 
 ## How to run
-Requirements: JDK 17+ and the Android SDK (installed with Android Studio; Gradle finds it via
-`ANDROID_HOME` or a `local.properties` file with `sdk.dir=...`, which Android Studio creates for you).
+Requirements: **JDK 17+**. Android SDK only for the phone (Android Studio installs it; Gradle finds it via `ANDROID_HOME`
+or `local.properties` with `sdk.dir=...`). Commands are PowerShell (Windows); on macOS/Linux use `./gradlew` and `EG_DEMO=1 ./gradlew ...`.
+Optional: `cp .env.example .env` and set `OPENROUTER_API_KEY` for the online AI coach (never commit `.env`).
 
-```bash
-# 1. Desktop app (mock vision + mock inputs, no hardware needed)
-./gradlew :composeApp:run            # Windows: .\gradlew.bat :composeApp:run
-
-# 2. Vision sidecar (Python 3.12: mediapipe + ai-edge-litert have no 3.15 wheels; conda not supported)
-python -m venv .venv && .venv/Scripts/activate   # macOS/Linux: source .venv/bin/activate
-pip install -r vision/requirements.txt
-curl -L -o vision/models/face_landmarker.task --create-dirs https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task
-# Logitech prototype: set PYTHONPATH to the unzipped LogiInsight SDK folder (logiinsight_api) and
-# LOGIWEBCAM_USER / LOGIWEBCAM_PASSWORD (card in the kit; env only, never in files). See docs/BUILD_LOG.md spike #25.
-python vision/main.py                # auto: LogiInsight on-camera mesh, else MediaPipe on the default webcam
-python vision/main.py --source mediapipe   # force the webcam fallback (--camera N to pick another webcam)
-python vision/main.py --source fake        # fake tiredness curve, no camera
-# Console prints source / fps / EAR / blinks / PERCLOS every second. Keep eyes open the first ~5 s (calibration).
-
-# 3. Desktop app connected to the sidecar instead of the mock
-EG_VISION=ws ./gradlew :composeApp:run           # PowerShell: $env:EG_VISION="ws"; .\gradlew.bat :composeApp:run
-
-# 4. Real mouse/keyboard stats (JNativeHook global hooks) instead of the mock
-EG_INPUT=real ./gradlew :composeApp:run          # PowerShell: $env:EG_INPUT="real"; .\gradlew.bat :composeApp:run
-# macOS: allow the terminal/IDE in Privacy & Security > Accessibility + Input Monitoring, otherwise no events.
-# Windows: input inside elevated (admin) windows is not captured.
-
-# 5. Real MX Master 4 vibration (Bluetooth; Bolt untested) instead of the console mock
-EG_HAPTICS=mx ./gradlew :composeApp:run          # PowerShell: $env:EG_HAPTICS="mx"; .\gradlew.bat :composeApp:run
-# The mouse buzzes once at startup if it is found; otherwise you hear a beep.
-
-# 6. Demo mode: scripted fatigue ramp through the real engine (FRESH ~20 s, TIRED ~60 s, EXHAUSTED ~90 s)
-EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; .\gradlew.bat :composeApp:run
-# Overrides EG_VISION / EG_INPUT (combine with EG_HAPTICS=mx for real vibration). F5 = restart the script.
-# A second window "EnergyGuard — Inbox" opens too (guardrail demo). Outside demo mode: F2 on the dashboard opens it.
-# A "Demo data" pill is shown in the header. Keys: 1 / 2 / 3 = Today / Journal / Profile tabs, F2 = inbox, F5 = replay.
-
-# 7. EnergyCoach (LLM): put OPENROUTER_API_KEY in .env (see .env.example). Without it -> offline templates.
-# Coach messages are printed as "[coach] ..." in the console. EG_COACH=offline forces templates, EG_COACH_MODEL=<id> changes the model.
-
-# 8. Real-world guardrail in Chrome (incl. real Gmail): see "Chrome extension" below.
-
-# 9. Android: same shared engine + demo script, live on a phone (see "Android" below)
-./gradlew :composeApp:installDebug      # Windows: .\gradlew.bat :composeApp:installDebug
+### 1. Desktop demo (no hardware needed) — what we show on stage
+```powershell
+$env:EG_DEMO="1"; .\gradlew.bat :composeApp:run
 ```
+Scripted fatigue ramp through the real engine (calibration 15 s, TIRED ~60 s, EXHAUSTED ~90 s), "Demo data" pill in the
+header, inbox window opens too. Nothing is saved to disk in demo mode. Real vibration: also set `$env:EG_HAPTICS="mx"`
+(MX Master 4 over Bluetooth; it buzzes once at start if found, else you hear a beep).
+To go back to normal mode in the same terminal: `Remove-Item Env:EG_DEMO`.
+
+### 2. Live: Logitech webcam / any webcam + real mouse, keyboard and haptics
+```powershell
+# Once: Python 3.12 venv (mediapipe + ai-edge-litert have no newer wheels; conda not supported)
+python -m venv .venv; .\.venv\Scripts\Activate.ps1; pip install -r vision/requirements.txt pytest
+curl.exe -L -o vision/models/face_landmarker.task --create-dirs https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task
+```
+```powershell
+# Terminal 1: vision sidecar on ws://localhost:8765
+python vision/main.py                         # auto: LogiInsight on-camera mesh, else MediaPipe on the default webcam
+```
+```powershell
+# Terminal 2: the app, fed by the sidecar + global mouse/keyboard hooks + MX Master 4
+$env:EG_VISION="ws"; $env:EG_INPUT="real"; $env:EG_HAPTICS="mx"; .\gradlew.bat :composeApp:run
+```
+- Sidecar options: `--source mediapipe` (force the webcam fallback, `--camera N` for another webcam), `--source fake`
+  (fake tiredness curve, no camera), `--perclos-level 0.5..0.6`. Its console prints source / fps / EAR / blinks / PERCLOS every second.
+- Logitech prototype: set `PYTHONPATH` to the unzipped LogiInsight SDK folder (`logiinsight_api`) and `LOGIWEBCAM_USER` /
+  `LOGIWEBCAM_PASSWORD` (card in the kit; environment only, never in files). See `docs/BUILD_LOG.md` spike #25.
+- Keep your eyes open and work normally for the first **60 s** (calibration of your personal baseline). Profile → **Recalibrate** redoes it.
+- Sidecar not running: the app still starts; Live signals show "no data" for the eyes and it reconnects by itself when the sidecar starts.
+- Without `EG_VISION` / `EG_INPUT` the app uses mock sensors (random numbers), useful only to try the UI.
+- `EG_INPUT=real`: Windows does not capture input in elevated (admin) windows; macOS needs Accessibility + Input Monitoring for the terminal.
+- Live mode saves journal, settings and 7-day history in `~/.energyguard/`.
+
+### 3. Android app + phone sharing
+```powershell
+.\gradlew.bat :composeApp:installDebug        # phone plugged in by USB, USB debugging on (see "Android" below)
+```
+On its own the phone replays the demo (same shared engine). To mirror the PC live: PC **Profile** tab (key 3) → **Phone sharing**
+on → type the shown `IP:8767` + 6-digit code on the phone (**Connect**). Same Wi-Fi needed: use the phone's hotspot. Details below.
+
+### 4. Chrome extension (real-world guardrail)
+With the desktop app running: `chrome://extensions` → Developer mode → **Load unpacked** → `extension/`. Details below.
+
+### Tests
+```powershell
+.\gradlew.bat :composeApp:desktopTest         # engine, guardrail, coach, servers + offscreen renders in composeApp/build/screens
+.\gradlew.bat :composeApp:assembleDebug       # Android build
+python -m pytest vision/test_metrics.py        # sidecar metrics (in the venv)
+```
+
+Other env vars: `EG_COACH=offline` (templates only), `EG_COACH_MODEL=<id>`, `EG_COMPANION=1` (phone sharing on at start),
+`EG_COMPANION_PORT` / `EG_COMPANION_HOST`, `EG_GUARD_PORT` (default 8766), `EG_EXTENSION_ID`, `EG_HAPTIC_GENTLE` / `EG_HAPTIC_WARNING` (effect 0–14).
 
 ### Phone companion: live energy from the PC (#48)
 The PC stays the sensor hub (webcam, MX Master 4, keyboard); the phone mirrors its **live** gauge, reasons and coach message,
