@@ -42,7 +42,9 @@ WebSocket server in `vision/`, `ws://localhost:8765`, one JSON message per frame
   and null before 15 s of eye data, so the engine's 60 s calibration does not learn a ramp from 0.
 - `lastBlinkMs`: duration of the last blink. A blink is a 50-500 ms closure; longer closures (a glance down, a micro-sleep)
   go through `eyesClosed` / PERCLOS and are neither counted nor reported as blinks.
-- `perclos`: fraction of the last 60 s with eyes >= 80 % closed.
+- `perclos`: fraction of the last 60 s with eye closure >= **0.5** on the sidecar's closure scale (blendshape `eyeBlink`,
+  or EAR vs baseline). Inspired by PERCLOS (the studies' P80 = >= 80 % of the pupil covered, dedicated sensors); on our
+  scale heavy half-closed lids read 0.45-0.77, so P80 missed them. Tunable: `python vision/main.py --perclos-level 0.6`.
 - `source`: which perception path produced the eye metrics:
   `"logiinsight-rgb"` (LogiInsight SDK face mesh on the RGB stream), `"logiinsight-ir"` (same on the IR stream: low light / glasses),
   `"mediapipe"` (fallback on any webcam). Mocks/fakes may send `"mock"`; older stubs may still send `"webcam"`.
