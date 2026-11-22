@@ -81,14 +81,15 @@ EG_DEMO=1 ./gradlew :composeApp:run             # PowerShell: $env:EG_DEMO="1"; 
 ### Phone companion: live energy from the PC (#48)
 The PC stays the sensor hub (webcam, MX Master 4, keyboard); the phone mirrors its **live** gauge, reasons and coach message,
 vibrates on TIRED (1 buzz) / EXHAUSTED (3 buzzes) and says "you can go back" when the PC is back to FRESH/OK.
-Off unless `EG_COMPANION=1`. Read-only `GET /state`, 6-digit pairing code on every request (new at every app start),
+Off by default: turn on **Phone sharing** in the desktop **Profile** tab (or start with `EG_COMPANION=1`). Read-only
+`GET /state`, 6-digit pairing code on every request (new every time sharing is turned on),
 5 wrong codes → locked 1 min. Contract and security rules: `docs/API.md` → "Phone companion".
 
 Venue / eduroam Wi-Fi usually blocks device-to-device traffic, so **put the laptop on the phone's hotspot**:
 1. Phone: turn on the **mobile hotspot**. Laptop: join that Wi-Fi **before** starting the app (the app picks its address at start).
 2. Windows: **Settings → Network & internet → Wi-Fi → (the hotspot) → Network profile type: Private** (hotspots often join as Public).
-3. Start the PC app: `$env:EG_DEMO="1"; $env:EG_COMPANION="1"; .\gradlew.bat :composeApp:run`
-   (drop `EG_DEMO` for real sensors). Desktop **Profile** tab (key 3) + console: `Phone: 192.168.x.y:8767 · code 123456`.
+3. Start the PC app: `$env:EG_DEMO="1"; .\gradlew.bat :composeApp:run` (drop `EG_DEMO` for real sensors), **Profile**
+   tab (key 3) → **Phone sharing** on (or start with `$env:EG_COMPANION="1"`). It shows `192.168.x.y:8767 · code 123456`.
 4. **Windows Firewall prompt** ("Java(TM) Platform SE binary"): tick **Private networks only**, then **Allow**.
    If you once clicked Cancel/Deny: `wf.msc` → Inbound Rules → the `java` / `OpenJDK Platform binary` rules → allow on Private.
 5. Phone: open EnergyGuard → **Connect** on Today (or the **Profile** tab) → type the IP, port `8767`, the code → **Connect**.
@@ -98,7 +99,7 @@ Venue / eduroam Wi-Fi usually blocks device-to-device traffic, so **put the lapt
 - Wrong code → Profile tab "Wrong code". PC app closed / Wi-Fi lost → "Can't reach your PC" card + local demo replay, retries every second.
 - Other options: `EG_COMPANION_PORT` (default 8767), `EG_COMPANION_HOST` (force the IP to listen on, if the dashboard shows the wrong one).
 - **USB backup** if Wi-Fi fails on stage: `adb reverse tcp:8767 tcp:8767`, then on the phone use address `127.0.0.1`
-  (the PC also listens on 127.0.0.1 when `EG_COMPANION=1`).
+  (the PC also listens on 127.0.0.1 while phone sharing is on).
 
 ### Android (2nd platform, #41)
 The phone runs the **same `commonMain` code** as the desktop demo mode: `DemoScript` + sample builders → `FatigueEngine`

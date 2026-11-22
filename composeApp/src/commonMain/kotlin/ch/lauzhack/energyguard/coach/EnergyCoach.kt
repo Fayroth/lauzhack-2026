@@ -51,7 +51,7 @@ fun interface LlmClient {
  * [llm] = null → templates only. [clock] = epoch ms (one clock with the engine). Not thread-safe: call from one coroutine.
  */
 class FrugalEnergyCoach(
-    private val llm: LlmClient?,
+    llm: LlmClient?,
     private val clock: () -> Long,
     private val minIntervalMs: Long = 10 * 60_000L,
     private val timeoutMs: Long = 5_000L,
@@ -62,8 +62,19 @@ class FrugalEnergyCoach(
     private val _lastMessage = MutableStateFlow<CoachMessage?>(null)
     val lastMessage: StateFlow<CoachMessage?> = _lastMessage.asStateFlow()
 
+    private var llm: LlmClient? = llm
     private var level: Level? = null
     private var breakSinceMs = clock()
+
+    /**
+     * Swap the LLM client at runtime (Profile "AI coach" switch): null = offline templates only. The rate limit and the
+     * call counter are kept, so the frugality numbers stay true across switches.
+     */
+    fun setLlm(client: LlmClient?) {
+        llm = client
+    }
+
+    val online: Boolean get() = llm != null
     private var lastAttemptMs: Long? = null
 
     /** Forget the level and the break timer (demo F5). The rate limit and the call counter are kept: they are real. */

@@ -16,6 +16,7 @@ import ch.lauzhack.energyguard.companion.toCompanionState
 import ch.lauzhack.energyguard.ui.phone.PhoneLink
 import ch.lauzhack.energyguard.ui.phone.PhoneProfileScreen
 import ch.lauzhack.energyguard.ui.phone.PhoneShell
+import ch.lauzhack.energyguard.ui.profile.SettingsActions
 import ch.lauzhack.energyguard.ui.today.SignalsSnapshot
 import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.today.liveSignals
@@ -104,7 +105,7 @@ class PhoneRenderTest {
         val demo = pc.copy(settings = pc.settings.copy(theme = ThemeMode.DARK))
         render("phone-profile-not-paired") {
             PhoneShell(demo, demo.liveSignals(), PhoneLink.NotPaired, Tab.PROFILE, {}, TodayActions(), {}) {
-                PhoneProfileScreen(PhoneLink.NotPaired, "192.168.1.20", 8767, null, ThemeMode.DARK, {}, {}, sleepHours = 6.0, onSleepHours = {})
+                PhoneProfileScreen(PhoneLink.NotPaired, "192.168.1.20", 8767, null, demo, {}, SettingsActions(), sleepHours = 6.0, onSleepHours = {})
             }
         }
     }
@@ -114,7 +115,21 @@ class PhoneRenderTest {
         val link = PhoneLink.Live("192.168.1.20:8767")
         render("phone-profile-live-light") {
             PhoneShell(state, signals, link, Tab.PROFILE, {}, TodayActions(), {}) {
-                PhoneProfileScreen(link, "192.168.1.20", 8767, null, ThemeMode.LIGHT, {}, {}, sleepHours = state.settings.sleepHours)
+                PhoneProfileScreen(link, "192.168.1.20", 8767, null, state, {}, SettingsActions(), sleepHours = state.settings.sleepHours)
+            }
+        }
+    }
+
+    /** Whole Profile scroll (live, paired): sleep, last 7 days, settings, privacy. */
+    @Test fun profileLiveDarkFull() = profileFull("phone-profile-live-dark-full", ThemeMode.DARK)
+    @Test fun profileLiveLightFull() = profileFull("phone-profile-live-light-full", ThemeMode.LIGHT)
+
+    private fun profileFull(name: String, theme: ThemeMode) {
+        val (state, signals) = overTheWire(theme)
+        val link = PhoneLink.Live("192.168.1.20:8767")
+        render(name, h = 1900) {
+            PhoneShell(state, signals, link, Tab.PROFILE, {}, TodayActions(), {}) {
+                PhoneProfileScreen(link, "192.168.1.20", 8767, null, state, {}, SettingsActions(), sleepHours = state.settings.sleepHours)
             }
         }
     }

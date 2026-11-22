@@ -17,6 +17,7 @@ import kotlinx.serialization.json.jsonObject
 import java.net.ServerSocket
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -117,6 +118,33 @@ class CompanionEndpointTest {
         assertEquals(9123, on.port); assertEquals("127.0.0.1", on.lanHost)
         assertTrue(Regex("^[0-9]{6}$").matches(on.endpoint.code))
         assertTrue(CompanionEndpoint.newCode() != CompanionEndpoint.newCode() || CompanionEndpoint.newCode() != CompanionEndpoint.newCode())
+    }
+
+    /** Profile "Phone sharing" switch (M5): on = create + start (new code), off = stop (nothing listens), on again = new code. */
+    @Test fun sharingSwitchStartsAndStopsAtRuntimeWithANewCode(): Unit = runBlocking {
+        val port = ServerSocket(0).use { it.localPort }
+        val env = mapOf("EG_COMPANION_HOST" to "127.0.0.1", "EG_COMPANION_PORT" to "$port")
+        val snapshot = { dashboard.toCompanionState(now) }
+        CompanionClient(CIO).use { client ->
+            val first = CompanionServer.create(snapshot) { env[it] } // EG_COMPANION not set: the switch alone turns it on
+            assertTrue(first.start())
+            val firstCode = first.endpoint.code
+            assertIs<CompanionResult.Ok>(client.fetch(PairingTarget("127.0.0.1", port, firstCode)))
+            first.stop()
+            assertIs<CompanionResult.Unreachable>(client.fetch(PairingTarget("127.0.0.1", port, firstCode)))
+
+            var second = CompanionServer.create(snapshot) { env[it] }
+            while (second.endpoint.code == firstCode) second = CompanionServer.create(snapshot) { env[it] } // 1 in a million
+            assertTrue(second.start(), "same port can be reused right after stop")
+            try {
+                assertEquals(CompanionResult.WrongCode, client.fetch(PairingTarget("127.0.0.1", port, firstCode)))
+                assertIs<CompanionResult.Ok>(client.fetch(PairingTarget("127.0.0.1", port, second.endpoint.code)))
+            } finally {
+                second.stop()
+            }
+        }
+        assertFalse(CompanionServer.enabledByEnv { null })
+        assertTrue(CompanionServer.enabledByEnv { if (it == "EG_COMPANION") "1" else null })
     }
 
     @Test fun realServerAndClientEndToEnd(): Unit = runBlocking {

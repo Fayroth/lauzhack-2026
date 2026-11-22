@@ -275,7 +275,8 @@ Security (mandatory):
 
 ## Phone companion (desktop → Android over local Wi-Fi, #48)
 The PC is the sensor hub (webcam, MX Master 4, keyboard); the phone mirrors its live state. **Read-only**, separate from the
-guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `desktopMain/companion/`, off unless `EG_COMPANION=1`.
+guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `desktopMain/companion/`, off by default; the
+desktop Profile "Phone sharing" switch starts / stops it at runtime (M5), `EG_COMPANION=1` = start with it on.
 
 `GET http://<PC LAN IP>:8767/state` (port: `EG_COMPANION_PORT`, default 8767), header `Authorization: Bearer <code>`
 → `200`, `Content-Type: application/json`, `Cache-Control: no-store`
@@ -337,9 +338,10 @@ guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `deskt
 Security (mandatory):
 - **Read-only:** one `GET`, no endpoint changes anything on the PC. Only numbers and the engine's short reason / coach strings:
   never images, audio, keystrokes, URLs or guardrail data.
-- **Pairing code on every request:** 6 random digits (`SecureRandom`), new at every app start, shown on the dashboard
+- **Pairing code on every request:** 6 random digits (`SecureRandom`), new every time sharing starts (app start or the
+  Profile switch turned on: an old code never works again), shown on the dashboard
   (`Phone: <IP>:<port> · code 123456`) and in the console. Compared in constant time (`MessageDigest.isEqual`).
-- Listens only when `EG_COMPANION=1`, on the LAN IPv4 of the default-route interface (override `EG_COMPANION_HOST`)
+- Listens only while phone sharing is on (Profile switch, default `EG_COMPANION=1`), on the LAN IPv4 of the default-route interface (override `EG_COMPANION_HOST`)
   + `127.0.0.1` (for `adb reverse`). Without `EG_COMPANION`, nothing listens beyond the guard server.
 - No CORS headers at all (a web page can't send the `Authorization` header cross-origin without a preflight, which gets `405`).
 - Logs nothing but a request counter (no IPs, no codes). Plain HTTP on the LAN: use the phone's hotspot (WPA2), allow the
@@ -363,10 +365,13 @@ data class AppState(
     val history: List<DaySummary>,     // past days, newest first, max 7 (today = stats)
     val demo: Boolean,
     val energyHistory: EnergyHistory,  // M4.5: today's battery curve (Today chart), in memory only
+    val todayAvgConcentration: Int?,   // M5: today's average concentration so far (calibrated time), "Last 7 days" today bar
+    val sampleJournal: Boolean,        // M5: journal seeded with SampleData (desktop demo) -> "Sample data" pill
 )
 /** One sample per STEP_MIN (5) min of app time (×120 in demo), oldest first, max 288; reset at start, day change, F5. */
 data class EnergyHistory(val startMs: Long = 0, val values: List<Int> = emptyList())
-class AppStore(clock: () -> Long, dayKey: (Long) -> String, persistence: AppPersistence, demo: Boolean = false, ...) {
+class AppStore(clock: () -> Long, dayKey: (Long) -> String, persistence: AppPersistence, demo: Boolean = false, ...,
+               sampleJournal: Boolean = false /* M5: empty journal -> SampleData.journal (never saved) */) {
     val state: StateFlow<AppState>
     // feeds (shell → store)
     fun onVision(frame: VisionFrame); fun onInput(stats: InputStats, ts: Long)
@@ -451,7 +456,14 @@ data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Bool
   Pearson r between KSS and our fatigue score (`100 - concentration`) shown only from 10 entries with a KSS.
 - `sleepHours` (3..9) is synced with `SleepPrior.hours` (the header slider) on every `tick`; at start it is restored only
   if `sleepDay` is today (yesterday's night is not tonight's).
-- `theme`, `hapticsOn`, `coachOnline` are stored for M2; `hapticsOn = false` already mutes haptics on desktop.
+- `theme`, `hapticsOn`, `coachOnline` (M5, Profile "Settings" card, both shells, persisted): `hapticsOn = false` mutes the
+  mouse / phone vibration; `coachOnline = false` unplugs the OpenRouter client (`FrugalEnergyCoach.setLlm(null)`: offline
+  templates, nothing sent; the call counter and the rate limit are kept). Without `OPENROUTER_API_KEY` (and always on the
+  phone) the switch shows "offline (no key)" and is disabled.
+- Profile "Recalibrate" (desktop, M5): a fresh `FatigueEngine` (calibration from 0: 15 s demo / 60 s live), `runId` changes
+  and `DashboardState.calibrationStartMs` = its start, so the Today chip shows "Calibrating… 12 s".
+- Profile "Last 7 days" (M5): average concentration + breaks per day from `history` + today. Demo, or fewer than 2 real days
+  with data → `SampleData.days` with a "Sample data" pill (the phone has no history: always sample).
 
 ### Persistence (`app/Persistence.kt`, expect/actual)
 Tiny JSON files (kotlinx.serialization), `{"version":1, ...}`: `settings.json`, `journal.json`, `history.json`.
