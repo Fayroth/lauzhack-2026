@@ -40,10 +40,16 @@ Requirements: JDK 17+ and the Android SDK (installed with Android Studio; Gradle
 # 1. Desktop app (mock vision + mock inputs, no hardware needed)
 ./gradlew :composeApp:run            # Windows: .\gradlew.bat :composeApp:run
 
-# 2. Vision sidecar (Python 3.12 recommended for mediapipe)
+# 2. Vision sidecar (Python 3.12: mediapipe + ai-edge-litert have no 3.15 wheels; conda not supported)
 python -m venv .venv && .venv/Scripts/activate   # macOS/Linux: source .venv/bin/activate
 pip install -r vision/requirements.txt
-python vision/main.py                # streams JSON on ws://localhost:8765 (fake frames for now)
+curl -L -o vision/models/face_landmarker.task --create-dirs https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task
+# Logitech prototype: set PYTHONPATH to the unzipped LogiInsight SDK folder (logiinsight_api) and
+# LOGIWEBCAM_USER / LOGIWEBCAM_PASSWORD (card in the kit; env only, never in files). See docs/BUILD_LOG.md spike #25.
+python vision/main.py                # auto: LogiInsight on-camera mesh, else MediaPipe on the default webcam
+python vision/main.py --source mediapipe   # force the webcam fallback (--camera N to pick another webcam)
+python vision/main.py --source fake        # fake tiredness curve, no camera
+# Console prints source / fps / EAR / blinks / PERCLOS every second. Keep eyes open the first ~5 s (calibration).
 
 # 3. Desktop app connected to the sidecar instead of the mock
 EG_VISION=ws ./gradlew :composeApp:run           # PowerShell: $env:EG_VISION="ws"; .\gradlew.bat :composeApp:run
