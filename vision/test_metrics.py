@@ -28,7 +28,8 @@ def test_ten_blinks_counted_and_perclos_low():
     seq = [(0.26, 27 * 6)] + [(0.05, 7), (0.26, 54)] * 10  # 6 s open, then 10 blinks of ~260 ms every 2 s
     em, out = run(seq)
     assert em.calibrated
-    assert out["blinkCount"] == 10
+    assert len(em.blinks) == 10
+    assert 20 <= out["blinkCount"] <= 26  # 10 blinks in ~26 s of eye data -> ~23 per minute (extrapolated)
     assert 200 <= out["lastBlinkMs"] <= 320
     assert out["perclos"] < 0.15
 
@@ -41,7 +42,7 @@ def test_long_closure_sets_eyes_closed_and_raises_perclos():
 
 def test_half_closed_eyes_are_not_blinks():
     em, out = run([(0.26, 27 * 6), (0.17, 27 * 10)])  # ~65 % of baseline, like spike #25 'miclos'
-    assert out["blinkCount"] == 0 and out["eyesClosed"] is False
+    assert not em.blinks and out["eyesClosed"] is False
 
 
 def test_turned_head_drops_eye_fields():
@@ -65,4 +66,17 @@ def test_oscillating_droop_is_one_closure():
     for _ in range(27):
         out = em.update(t, mesh_with_ear(0.26), blink_score=0.05)
         t += 1 / 27
-    assert out["eyesClosed"] is False and out["blinkCount"] == 1 and out["lastBlinkMs"] > 13000
+    # a 14 s closure is not a blink (it went through eyesClosed = micro-sleep path)
+    assert out["eyesClosed"] is False and out["blinkCount"] == 0 and out["lastBlinkMs"] is None
+
+
+def test_blink_rate_is_extrapolated_during_the_first_minute():
+    # 12 blinks/min from the start: the rate must read ~12 at 20 s and at 90 s, not ramp from 0 (engine calibration)
+    em, t, rates = EyeMetrics(), 0.0, {}
+    for i in range(27 * 90):
+        ear = 0.05 if (i % (27 * 5)) < 7 and t > 6 else 0.26  # one ~260 ms blink every 5 s after the EAR calibration
+        out = em.update(t, mesh_with_ear(ear))
+        rates[round(t)] = out.get("blinkCount")
+        t += 1 / 27
+    assert rates[10] is None, "no rate before 15 s of eye data"
+    assert 9 <= rates[25] <= 15 and 10 <= rates[89] <= 14, rates

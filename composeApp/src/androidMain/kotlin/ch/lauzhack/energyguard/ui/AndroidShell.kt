@@ -17,6 +17,7 @@ import ch.lauzhack.energyguard.HapticTrigger
 import ch.lauzhack.energyguard.app.AppStore
 import ch.lauzhack.energyguard.app.ThemeMode
 import ch.lauzhack.energyguard.coach.FrugalEnergyCoach
+import ch.lauzhack.energyguard.model.SleepPrior
 import ch.lauzhack.energyguard.companion.PairingPrefs
 import ch.lauzhack.energyguard.companion.phoneSignals
 import ch.lauzhack.energyguard.companion.rememberCompanionLink
@@ -143,7 +144,9 @@ private fun DemoReplay(store: AppStore, run: Int) {
     }
     LaunchedEffect(engine) {
         coach.reset()
-        engine.state.collect { s -> coach.onFatigue(s, localTimeHHmm()) }
+        engine.state.collect { s ->
+            coach.onFatigue(s, localTimeHHmm(), SleepPrior.hours, (store.state.value.stats.currentFocusMs / 60_000).toInt())
+        }
     }
     LaunchedEffect(engine) { engine.state.collect { store.onFatigue(it, System.currentTimeMillis(), engine.baselineSummary()) } }
     LaunchedEffect(coachMessage, llmCalls) { store.onCoach(coachMessage, llmCalls) }

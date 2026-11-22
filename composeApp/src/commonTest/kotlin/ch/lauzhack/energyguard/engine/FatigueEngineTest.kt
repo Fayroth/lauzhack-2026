@@ -23,6 +23,7 @@ private class Sim(seed: Int = 42, val inputEveryMs: Long = 1_000) {
     var face = true
     var eyesClosed = false
     var tired = 0.0
+    var blinksPerMin: Int? = null // overrides the tiredness-driven blink rate
     private var nextInputTs = now
 
     val state: FatigueState get() = engine.state.value
@@ -40,7 +41,7 @@ private class Sim(seed: Int = 42, val inputEveryMs: Long = 1_000) {
                     face = true,
                     ear = 0.30 - 0.10 * t + n(0.01),
                     eyesClosed = eyesClosed,
-                    blinkCount = (14 + 10 * t + n(2.0)).toInt(),
+                    blinkCount = blinksPerMin ?: (14 + 10 * t + n(2.0)).toInt(),
                     lastBlinkMs = (160 + 300 * t + n(20.0)).toInt(),
                     perclos = 0.05 + 0.30 * t + n(0.01),
                     source = "mock",
@@ -239,5 +240,39 @@ class FatigueEngineTest {
         sim.run(55_000)
         assertFalse(sim.state.calibrated, "only ~50 s of input so far")
         sim.calibrate()
+    }
+
+    @Test
+    fun headDropWithClosedEyesIsAMicroSleep() {
+        val sim = Sim()
+        sim.calibrate()
+        sim.run(30_000)
+        sim.eyesClosed = true
+        sim.run(600)          // eyes closed 0.6 s...
+        sim.face = false      // ...then the head drops out of the camera view
+        sim.run(1_000)
+        assertEquals(Level.TIRED, sim.state.level, "falling asleep must not be hidden by losing the face: ${sim.state}")
+        assertTrue(sim.state.reasons.first().startsWith("eyes closed"), "reasons: ${sim.state.reasons}")
+    }
+
+    @Test
+    fun blinkThenHeadTurnIsNotAMicroSleep() {
+        val sim = Sim()
+        sim.calibrate()
+        sim.run(30_000)
+        sim.eyesClosed = true
+        sim.run(200)          // a normal blink...
+        sim.face = false      // ...while turning the head away: the face is lost for a while
+        sim.eyesClosed = false
+        sim.run(5_000) { assertEquals(Level.FRESH, it.level, "a blink + head turn is not a micro-sleep: ${it.reasons}") }
+    }
+
+    @Test
+    fun fewerBlinksWhileReadingIsNotFatigue() {
+        val sim = Sim().apply { blinksPerMin = 15 }
+        sim.calibrate()
+        sim.blinksPerMin = 5 // focused reading: blink rate drops (computer-vision literature), the user is not tired
+        sim.run(2 * 60_000L) { assertEquals(Level.FRESH, it.level, "fewer blinks flagged as fatigue: ${it.reasons}") }
+        assertTrue(sim.state.reasons.none { it.startsWith("blink rate") }, "reasons: ${sim.state.reasons}")
     }
 }

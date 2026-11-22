@@ -22,7 +22,7 @@ data class CoachInput(
     val minutesSinceBreak: Int? = null, // since session start or the last recovery (null if unknown)
 )
 
-/** BREAK = 5 min away from the screen, STAND_UP = stand up / walk a bit (#29), RECOVERED = energy came back. */
+/** BREAK = 5 min away from the screen, STAND_UP = stand up / walk a bit (#29), RECOVERED = concentration came back. */
 enum class Intervention { BREAK, STAND_UP, RECOVERED }
 
 data class CoachMessage(
@@ -71,14 +71,21 @@ class FrugalEnergyCoach(
     /**
      * Feed every FatigueState. Returns a message only when the level changed and TIRED/EXHAUSTED is involved
      * (FRESH <-> OK is silent so the LLM budget is kept for what matters), otherwise null.
+     * [minutesSinceBreak]: the app's real focus streak (AppStore: reset by every break, user or automatic). When null, the
+     * coach falls back to its own estimate (since start or the last recovery to OK/FRESH).
      */
-    suspend fun onFatigue(state: FatigueState, localTime: String, sleepPriorHours: Double? = null): CoachMessage? {
+    suspend fun onFatigue(
+        state: FatigueState,
+        localTime: String,
+        sleepPriorHours: Double? = null,
+        minutesSinceBreak: Int? = null,
+    ): CoachMessage? {
         val previous = level
         level = state.level
         if (previous == null || previous == state.level) return null
         val now = clock()
-        val minutes = ((now - breakSinceMs) / 60_000).toInt()
-        if (state.level < previous && state.level <= Level.OK) breakSinceMs = now // energy came back = they rested
+        val minutes = minutesSinceBreak?.coerceAtLeast(0) ?: ((now - breakSinceMs) / 60_000).toInt()
+        if (state.level < previous && state.level <= Level.OK) breakSinceMs = now // concentration came back = they rested
         if (previous < Level.TIRED && state.level < Level.TIRED) return null
         return advise(CoachInput(state, previous, sleepPriorHours, localTime, minutes))
     }
@@ -137,7 +144,7 @@ class FrugalEnergyCoach(
         fun buildPrompt(input: CoachInput, kind: Intervention): String = buildString {
             val s = input.state
             appendLine("level: ${s.level} (was ${input.previousLevel})")
-            appendLine("energy: ${s.energy}/100")
+            appendLine("concentration: ${s.concentration}/100")
             safeReasons(s.reasons).takeIf { it.isNotEmpty() }?.let { appendLine("signals: ${it.joinToString(", ")}") }
             appendLine("local time: ${safeTime(input.localTime)}")
             input.minutesSinceBreak?.let { appendLine("minutes since last break: $it") }
@@ -146,7 +153,7 @@ class FrugalEnergyCoach(
                 when (kind) {
                     Intervention.BREAK -> "BREAK (5 minutes away from the screen)"
                     Intervention.STAND_UP -> "STAND_UP (stand up and walk for 2 minutes)"
-                    Intervention.RECOVERED -> "RECOVERED (energy is back, encourage tackling the hard task now)"
+                    Intervention.RECOVERED -> "RECOVERED (concentration is back, encourage tackling the hard task now)"
                 }
             )
         }
@@ -156,12 +163,12 @@ class FrugalEnergyCoach(
             val time = safeTime(input.localTime)
             val why = safeReasons(s.reasons).firstOrNull()?.let { ", $it" } ?: ""
             return when (kind) {
-                Intervention.BREAK -> "Energy ${s.energy}% at $time$why: take a 5-minute break away from the screen."
+                Intervention.BREAK -> "Concentration ${s.concentration}% at $time$why: take a 5-minute break away from the screen."
                 Intervention.STAND_UP -> {
                     val sat = input.minutesSinceBreak?.takeIf { it > 0 }?.let { ", $it min without a break" } ?: ""
-                    "Energy ${s.energy}% at $time$sat$why: stand up and walk for 2 minutes."
+                    "Concentration ${s.concentration}% at $time$sat$why: stand up and walk for 2 minutes."
                 }
-                Intervention.RECOVERED -> "Energy back to ${s.energy}%: nice recovery, good moment for the hard task."
+                Intervention.RECOVERED -> "Concentration back to ${s.concentration}%: nice recovery, good moment for the hard task."
             }
         }
 

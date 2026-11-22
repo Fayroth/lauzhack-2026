@@ -68,12 +68,12 @@ class Guardrail(
         val all = f.strong + f.weak
         return when {
             f.strong.isNotEmpty() && tired -> Verdict.Block(
-                "Blocked: this looks like phishing and your energy is low (${fatigue.energy}%). Take a break, check it later.",
+                "Blocked: this looks like phishing and your concentration is low (${fatigue.concentration}%). Take a break, check it later.",
                 all,
             )
             f.strong.isNotEmpty() -> Verdict.Warn("This link looks suspicious: ${f.strong.first().decap()}.", all)
             f.weak.isNotEmpty() && tired -> Verdict.Warn(
-                "Your energy is low (${fatigue.energy}%): are you sure you want to open ${f.host}?",
+                "Your concentration is low (${fatigue.concentration}%): are you sure you want to open ${f.host}?",
                 all,
             )
             else -> Verdict.Allow

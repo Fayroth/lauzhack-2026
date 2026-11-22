@@ -45,7 +45,7 @@ internal fun Double.fmt(decimals: Int = 2): String {
 }
 
 /** Color of the user's state (break alert, logo): the energy scale, except EXHAUSTED is always red. */
-fun stateColor(f: FatigueState): Color = if (f.level == Level.EXHAUSTED) Warm.Rose else energyColor(f.energy)
+fun stateColor(f: FatigueState): Color = if (f.level == Level.EXHAUSTED) Warm.Rose else energyColor(f.concentration)
 
 fun energyColor(energy: Int): Color = when {
     energy >= 75 -> Warm.Honey

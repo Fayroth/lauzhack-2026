@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
 private const val MIN = 60_000L
 
 /** Fake LLM: records every prompt, answers [reply] (or throws / hangs). */
-private class FakeLlm(var reply: String = "Energy 38%: stand up and stretch for two minutes.") : LlmClient {
+private class FakeLlm(var reply: String = "Concentration 38%: stand up and stretch for two minutes.") : LlmClient {
     val prompts = mutableListOf<String>()
     var fail = false
     var hangMs = 0L
@@ -108,7 +108,7 @@ class EnergyCoachTest {
             "16:20", sleepPriorHours = 5.5,
         )
         val prompt = llm.prompts.single()
-        assertTrue("energy: 38/100" in prompt, prompt)
+        assertTrue("concentration: 38/100" in prompt, prompt)
         assertTrue("level: TIRED (was OK)" in prompt)
         assertTrue("eyes closing +40%" in prompt && "shaky mouse +25%" in prompt)
         assertTrue("sleep last night: 5.5 h" in prompt)
@@ -135,5 +135,22 @@ class EnergyCoachTest {
         assertEquals("Stand up now.", FrugalEnergyCoach.sanitizeOutput("\n  **\"Stand up now.\"**\nSecond line"))
         assertNull(FrugalEnergyCoach.sanitizeOutput("  \n "))
         assertEquals(160, FrugalEnergyCoach.sanitizeOutput("a".repeat(500))!!.length)
+    }
+
+    @Test
+    fun appFocusStreakAndSleepReachTheCoach() = runTest {
+        val llm = FakeLlm()
+        val c = coach(null)
+        c.onFatigue(state(Level.OK, 40), "16:20")
+        // TIRED with an eye reason would be a BREAK, but the app says 50 min without a break: stand up
+        val msg = assertNotNull(c.onFatigue(state(Level.TIRED, 60, "eyes closing +40%"), "16:20", sleepPriorHours = 5.0, minutesSinceBreak = 50))
+        assertEquals(Intervention.STAND_UP, msg.kind)
+        assertTrue("50 min without a break" in msg.text, msg.text)
+
+        val c2 = coach(llm)
+        c2.onFatigue(state(Level.OK, 40), "16:20")
+        c2.onFatigue(state(Level.TIRED, 60, "eyes closing +40%"), "16:20", sleepPriorHours = 5.0, minutesSinceBreak = 3)
+        assertTrue("sleep last night: 5.0 h" in llm.prompts.single(), llm.prompts.single())
+        assertTrue("minutes since last break: 3" in llm.prompts.single())
     }
 }
