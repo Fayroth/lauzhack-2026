@@ -121,10 +121,9 @@ class FatigueEngineTest {
         assertEquals(Level.FRESH, sim.state.level)
 
         sim.eyesClosed = true
-        sim.run(900)
-        assertEquals(Level.FRESH, sim.state.level, "eyes closed < 1 s is just a blink")
+        sim.run(2_900) { assertEquals(Level.FRESH, it.level, "eyes closed < 3 s (blink, glance at the keyboard) must not move the level") }
         sim.run(300)
-        assertEquals(Level.TIRED, sim.state.level, "eyes closed > 1 s must be instant TIRED")
+        assertEquals(Level.TIRED, sim.state.level, "eyes closed > 3 s must be instant TIRED")
         assertTrue(sim.state.reasons.first().startsWith("eyes closed"), "reasons: ${sim.state.reasons}")
 
         // Eyes open again: we don't flip straight back to FRESH.
@@ -248,9 +247,9 @@ class FatigueEngineTest {
         sim.calibrate()
         sim.run(30_000)
         sim.eyesClosed = true
-        sim.run(600)          // eyes closed 0.6 s...
+        sim.run(1_600)        // eyes closed 1.6 s...
         sim.face = false      // ...then the head drops out of the camera view
-        sim.run(1_000)
+        sim.run(2_000)
         assertEquals(Level.TIRED, sim.state.level, "falling asleep must not be hidden by losing the face: ${sim.state}")
         assertTrue(sim.state.reasons.first().startsWith("eyes closed"), "reasons: ${sim.state.reasons}")
     }
@@ -274,5 +273,16 @@ class FatigueEngineTest {
         sim.blinksPerMin = 5 // focused reading: blink rate drops (computer-vision literature), the user is not tired
         sim.run(2 * 60_000L) { assertEquals(Level.FRESH, it.level, "fewer blinks flagged as fatigue: ${it.reasons}") }
         assertTrue(sim.state.reasons.none { it.startsWith("blink rate") }, "reasons: ${sim.state.reasons}")
+    }
+
+    @Test
+    fun glanceAtKeyboardIsNotAMicroSleep() {
+        val sim = Sim()
+        sim.calibrate()
+        sim.run(30_000)
+        sim.eyesClosed = true
+        sim.run(1_000)        // looking down at the keyboard: lids low for ~1 s...
+        sim.face = false      // ...and the mesh is lost while the head is down
+        sim.run(5_000) { assertEquals(Level.FRESH, it.level, "a keyboard glance is not a micro-sleep: ${it.reasons}") }
     }
 }

@@ -80,3 +80,28 @@ def test_blink_rate_is_extrapolated_during_the_first_minute():
         t += 1 / 27
     assert rates[10] is None, "no rate before 15 s of eye data"
     assert 9 <= rates[25] <= 15 and 10 <= rates[89] <= 14, rates
+
+
+def test_short_closures_are_not_eyes_closed():
+    em, t = EyeMetrics(), 0.0
+    for _ in range(27 * 6):
+        em.update(t, mesh_with_ear(0.26))
+        t += 1 / 27
+    out = em.update(t, mesh_with_ear(0.04))  # one noisy frame
+    assert out["eyesClosed"] is False
+    for _ in range(3):  # a ~150 ms blink: counted as a blink, never reported as eyes closed
+        t += 1 / 27
+        out = em.update(t, mesh_with_ear(0.04))
+        assert out["eyesClosed"] is False
+    for _ in range(27):
+        t += 1 / 27
+        out = em.update(t, mesh_with_ear(0.26))
+    assert len(em.blinks) == 1 and out["lastBlinkMs"] < 250
+    for _ in range(27):  # a ~1 s glance at the keyboard: eyes closed (>= 200 ms) but not a blink
+        t += 1 / 27
+        out = em.update(t, mesh_with_ear(0.04))
+    assert out["eyesClosed"] is True
+    for _ in range(27):
+        t += 1 / 27
+        out = em.update(t, mesh_with_ear(0.26))
+    assert len(em.blinks) == 1, "a 1 s closure is not a blink"
