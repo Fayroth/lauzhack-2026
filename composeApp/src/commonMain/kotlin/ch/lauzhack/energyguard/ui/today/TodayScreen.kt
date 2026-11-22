@@ -47,6 +47,8 @@ import ch.lauzhack.energyguard.ui.components.hoursText
 import ch.lauzhack.energyguard.ui.factorize
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 import kotlin.time.TimeSource
 
 /** User actions of the Today tab (and the sleep slider, now on Profile), wired to AppStore by the shell. */
@@ -152,15 +154,22 @@ private fun SleepTrack(fraction: Float) {
     }
 }
 
-/** Seconds left in calibration, counted from when it is first shown (keyed on the run by the caller). */
+/**
+ * Seconds left in calibration: from [startedMs] (wall clock the engine started, e.g. after "Recalibrate" on Profile)
+ * when known, else counted from when it is first shown (keyed on the run by the caller).
+ */
+@OptIn(ExperimentalTime::class)
 @Composable
-internal fun calibrationSecondsLeft(calibrationMs: Long, calibrated: Boolean): Int {
+internal fun calibrationSecondsLeft(calibrationMs: Long, calibrated: Boolean, startedMs: Long = 0): Int {
     val total = (calibrationMs / 1000).toInt()
     val start = remember { TimeSource.Monotonic.markNow() }
-    var left by remember { mutableIntStateOf(total) }
-    LaunchedEffect(start, calibrated) {
+    fun elapsedS(): Int =
+        if (startedMs > 0) ((Clock.System.now().toEpochMilliseconds() - startedMs) / 1000).toInt()
+        else start.elapsedNow().inWholeSeconds.toInt()
+    var left by remember { mutableIntStateOf((total - elapsedS()).coerceIn(0, total)) }
+    LaunchedEffect(start, calibrated, startedMs) {
         while (!calibrated) {
-            left = (total - start.elapsedNow().inWholeSeconds.toInt()).coerceAtLeast(0)
+            left = (total - elapsedS()).coerceIn(0, total)
             delay(250)
         }
     }

@@ -31,6 +31,10 @@ import ch.lauzhack.energyguard.app.ThemeMode
 import ch.lauzhack.energyguard.app.desktopPersistence
 import ch.lauzhack.energyguard.app.localDayKey
 import ch.lauzhack.energyguard.coach.desktopEnergyCoach
+import ch.lauzhack.energyguard.coach.desktopLlm
+import ch.lauzhack.energyguard.ui.profile.ProfileActions
+import ch.lauzhack.energyguard.ui.profile.SettingsActions
+import ch.lauzhack.energyguard.ui.profile.Sharing
 import ch.lauzhack.energyguard.coach.localTimeHHmm
 import ch.lauzhack.energyguard.companion.CompanionServer
 import ch.lauzhack.energyguard.companion.CompanionState
@@ -80,11 +84,14 @@ private const val VISION_STALE_MS = 2_000L
  * All collection runs on the Compose main thread, so the (non-thread-safe) engine sees one caller.
  * Haptics: console mock by default, real MX Master 4 vibration with env var EG_HAPTICS=mx.
  * Coach: EnergyCoach on level changes (OpenRouter if OPENROUTER_API_KEY is set, else offline templates; EG_COACH=offline forces templates).
+ *   Profile "AI coach" switch (Settings.coachOnline, persisted) plugs the OpenRouter client in or out at runtime.
  * Demo mode (EG_DEMO=1): scripted fatigue ramp into the same engine (demo/DemoMode.kt), F5 replays it, "DEMO" marker.
  * Inbox: second window "EnergyGuard — Inbox" (guardrail demo, ui/DemoInbox.kt), open at start in demo mode, F2 on the dashboard opens it.
  * Chrome guard (#43): POST http://127.0.0.1:8766/guard for extension/ (guard/GuardServer.kt), same `guard` function as LocalGuard.
- * Phone companion (#48, EG_COMPANION=1 only): read-only GET http://<LAN IP>:8767/state with a pairing code (companion/CompanionServer.kt),
- * fed a snapshot of the dashboard state after each recomposition. Off by default: nothing more listens.
+ * Phone companion (#48): read-only GET http://<LAN IP>:8767/state with a pairing code (companion/CompanionServer.kt),
+ * fed a snapshot of the dashboard state after each recomposition. Off by default: nothing more listens. M5: the Profile
+ * "Phone sharing" switch starts / stops it at runtime (starts on with EG_COMPANION=1), new code at every start.
+ * Profile "Recalibrate" = a fresh engine (calibration restarts: 15 s demo / 60 s live), like F5 without the demo replay.
  * App model (M1): AppStore (app/AppStore.kt) is fed the same events (engine, coach, guard blocks, 1 s tick) and persists
  * journal/settings/history in ~/.energyguard/ (in memory in demo mode).
  * UI (M2): DesktopShell (ui/DesktopShell.kt) renders AppStore.state only: rail Today / Journal / Profile (keys 1 / 2 / 3,
@@ -95,7 +102,9 @@ fun main() = application {
     val demo = remember { System.getenv("EG_DEMO") == "1" }
     val demoClock = remember { DemoClock() }
     var demoRun by remember { mutableStateOf(0) } // F5 in demo mode: fresh engine + haptic cooldown, script from 0
-    val engine = remember(demoRun) { if (demo) DemoScript.newEngine() else FatigueEngine() }
+    var engineRun by remember { mutableStateOf(0) } // F5 or Profile "Recalibrate": fresh engine, calibration from 0
+    val engineStartMs = remember(engineRun) { System.currentTimeMillis() }
+    val engine = remember(engineRun) { if (demo) DemoScript.newEngine() else FatigueEngine() }
     val vision = remember {
         if (demo) MockVisionSource(demoClock::tiredness)
         else if (System.getenv("EG_VISION") == "ws") WebSocketVisionSource() else MockVisionSource()
@@ -110,11 +119,21 @@ fun main() = application {
         else MockHapticOutput()
     }
     val store = remember {
-        AppStore(System::currentTimeMillis, ::localDayKey, if (demo) InMemoryPersistence() else desktopPersistence(), demo = demo)
+        AppStore(
+            System::currentTimeMillis, ::localDayKey, if (demo) InMemoryPersistence() else desktopPersistence(), demo = demo,
+            sampleJournal = demo, // demo: 12 labelled sample check-ins so "You vs our measure" has something to show
+        )
     }
     DisposableEffect(store) { onDispose { store.flush() } }
+    val appState by store.state.collectAsState()
     val mainScope = rememberCoroutineScope() // guard Block events from Ktor threads -> store on the main thread
     val coach = remember { desktopEnergyCoach() } // not keyed on demoRun: the rate limit and the call counter stay real
+    val llm = remember { desktopLlm() } // OpenRouter client or why there is none ("no key")
+    val coachOnline = appState.settings.coachOnline && llm.client != null
+    LaunchedEffect(coachOnline) {
+        coach.setLlm(if (coachOnline) llm.client else null)
+        println("[coach] ${if (coachOnline) "AI coach online (OpenRouter)" else "offline templates (${llm.unavailable ?: "switched off"})"}")
+    }
     val guardrail = remember { Guardrail() }
     // ONE guard function for the inbox (LocalGuard) and the Chrome extension (GuardServer): checked against the latest
     // fatigue of the current engine (F5 swaps it), mouse vibrates on every Block. Called from the UI thread or Ktor threads:
@@ -137,15 +156,20 @@ fun main() = application {
 
     // Phone companion: Ktor threads only read this snapshot; the UI thread writes it (SideEffect below).
     val companionSnapshot = remember { AtomicReference<CompanionState?>(null) }
-    val companion = remember { CompanionServer.fromEnv(companionSnapshot::get) } // null unless EG_COMPANION=1
+    var sharingOn by remember { mutableStateOf(CompanionServer.enabledByEnv()) } // Profile switch, starts = EG_COMPANION
+    val companion = remember(sharingOn) { if (sharingOn) CompanionServer.create(companionSnapshot::get) else null } // new code
+    var listening by remember { mutableStateOf<CompanionServer?>(null) }
     DisposableEffect(companion) {
-        companion?.start()
-        onDispose { companion?.stop() }
+        if (companion?.start() == true) listening = companion
+        onDispose {
+            companion?.stop()
+            if (companion != null) println("[companion] phone sharing off")
+            listening = null
+        }
     }
 
     var showInbox by remember { mutableStateOf(demo) }
     var tab by remember { mutableStateOf(Tab.TODAY) }
-    val appState by store.state.collectAsState()
 
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
@@ -199,7 +223,7 @@ fun main() = application {
             onKeyEvent = {
                 if (it.type != KeyEventType.KeyDown || it.isCtrlPressed || it.isAltPressed) return@Window false
                 when (shortcutFor(it.key, TextFieldFocus.active)) { // typing in a text field: no shortcuts
-                    Shortcut.REPLAY_DEMO -> if (demo) { demoClock.restart(); demoRun++; store.resetRun(); true } else false
+                    Shortcut.REPLAY_DEMO -> if (demo) { demoClock.restart(); demoRun++; engineRun++; store.resetRun(); true } else false
                     Shortcut.OPEN_INBOX -> { showInbox = true; true }
                     Shortcut.TAB_TODAY -> { tab = Tab.TODAY; true }
                     Shortcut.TAB_JOURNAL -> { tab = Tab.JOURNAL; true }
@@ -213,7 +237,8 @@ fun main() = application {
                     fatigue, lastVision, lastInput, coachMessage, llmCalls,
                     calibrationMs = if (demo) DemoScript.CALIBRATION_MS else FatigueEngine.DEFAULT_CALIBRATION_MS,
                     windowMs = if (demo) DemoScript.WINDOW_MS else FatigueEngine.DEFAULT_WINDOW_MS,
-                    runId = demoRun,
+                    runId = engineRun,
+                    calibrationStartMs = engineStartMs,
                 )
                 SideEffect {
                     store.setDashboard(dashboard)
@@ -227,13 +252,26 @@ fun main() = application {
                     onToggleTheme = {
                         store.updateSettings { s -> s.copy(theme = if (s.theme == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT) }
                     },
-                    pairing = companion?.pairingLabel, // shown on Profile only
+                    sharing = Sharing(sharingOn, listening?.takeIf { it === companion }?.pairingLabel), // Profile only
                     journal = remember(store) {
                         JournalActions(onSave = { k, s, c, n -> store.addJournalEntry(k, s, c, n) }, onDelete = store::deleteJournalEntry)
                     },
+                    profile = remember(store) {
+                        ProfileActions(
+                            onSleepHours = store::setSleepHours,
+                            settings = SettingsActions(
+                                onHaptics = { on -> store.updateSettings { it.copy(hapticsOn = on) } },
+                                onCoachOnline = { on -> store.updateSettings { it.copy(coachOnline = on) } },
+                                onLightMode = { on -> store.updateSettings { it.copy(theme = if (on) ThemeMode.LIGHT else ThemeMode.DARK) } },
+                            ),
+                            onSharing = { sharingOn = it },
+                            onRecalibrate = { engineRun++ },
+                        )
+                    },
+                    coachUnavailable = llm.unavailable,
                 ) {
-                    // Demo mode calibrates in 15 s: shorter alert escalation too. F5 replay: fresh alert state.
-                    key(demoRun) { BreakAlertOverlay(fatigue, coachMessage, demo) }
+                    // Demo mode calibrates in 15 s: shorter alert escalation too. F5 replay / recalibration: fresh alert state.
+                    key(engineRun) { BreakAlertOverlay(fatigue, coachMessage, demo) }
                 }
             }
         }

@@ -122,8 +122,17 @@ class CompanionServer(val endpoint: CompanionEndpoint, val lanHost: String?, val
         const val LOOPBACK = "127.0.0.1"
 
         /** null unless EG_COMPANION=1: without it the desktop app behaves exactly as before (nothing more listens). */
-        fun fromEnv(snapshot: () -> CompanionState?, env: (String) -> String? = System::getenv): CompanionServer? {
-            if (env("EG_COMPANION") != "1") return null
+        fun fromEnv(snapshot: () -> CompanionState?, env: (String) -> String? = System::getenv): CompanionServer? =
+            if (env("EG_COMPANION") == "1") create(snapshot, env) else null
+
+        /** true when the app should start with phone sharing on (EG_COMPANION=1). The Profile switch changes it at runtime. */
+        fun enabledByEnv(env: (String) -> String? = System::getenv): Boolean = env("EG_COMPANION") == "1"
+
+        /**
+         * A new server (not started) with a NEW random code: the Profile "Phone sharing" switch builds one each time it is
+         * turned on, so an old code never works again. Port / host from EG_COMPANION_PORT / EG_COMPANION_HOST.
+         */
+        fun create(snapshot: () -> CompanionState?, env: (String) -> String? = System::getenv): CompanionServer {
             val port = env("EG_COMPANION_PORT")?.toIntOrNull()?.takeIf { it in 1024..65535 } ?: PairingTarget.DEFAULT_PORT
             val host = env("EG_COMPANION_HOST")?.trim()?.takeIf { it.isNotEmpty() } ?: lanIpv4()
             return CompanionServer(CompanionEndpoint(CompanionEndpoint.newCode(), snapshot), host, port)

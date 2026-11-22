@@ -32,6 +32,7 @@ import ch.lauzhack.energyguard.model.VisionFrame
 import ch.lauzhack.energyguard.ui.journal.JournalActions
 import ch.lauzhack.energyguard.ui.phone.PhoneProfileScreen
 import ch.lauzhack.energyguard.ui.phone.PhoneShell
+import ch.lauzhack.energyguard.ui.profile.SettingsActions
 import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.today.liveSignals
 import kotlinx.coroutines.delay
@@ -108,10 +109,14 @@ fun AndroidShell(haptics: HapticOutput, prefs: PairingPrefs, store: AppStore, on
             savedHost = prefs.lastHost(),
             savedPort = prefs.lastPort(),
             error = error,
-            theme = theme,
+            state = shown,
             onConnect = { t -> prefs.save(t); target = t; error = null; go(Tab.TODAY) },
-            onToggleTheme = {
-                store.updateSettings { s -> s.copy(theme = if (s.theme == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT) }
+            settingsActions = remember(store) {
+                SettingsActions(
+                    onHaptics = { on -> store.updateSettings { it.copy(hapticsOn = on) } },
+                    onCoachOnline = {}, // disabled on the phone (no key)
+                    onLightMode = { on -> store.updateSettings { it.copy(theme = if (on) ThemeMode.LIGHT else ThemeMode.DARK) } },
+                )
             },
             modifier = Modifier.imePadding(),
             sleepHours = shown.settings.sleepHours,
@@ -128,6 +133,7 @@ fun AndroidShell(haptics: HapticOutput, prefs: PairingPrefs, store: AppStore, on
 @Composable
 private fun DemoReplay(store: AppStore, run: Int) {
     val engine = remember(run) { DemoScript.newEngine() }
+    val startMs = remember(run) { System.currentTimeMillis() }
     val coach = remember { FrugalEnergyCoach(llm = null, clock = System::currentTimeMillis) } // templates only
     var lastVision by remember { mutableStateOf<VisionFrame?>(null) }
     var lastInput by remember { mutableStateOf<InputStats?>(null) }
@@ -162,7 +168,7 @@ private fun DemoReplay(store: AppStore, run: Int) {
 
     val dashboard = DashboardState(
         fatigue, lastVision, lastInput, coachMessage, llmCalls,
-        calibrationMs = DemoScript.CALIBRATION_MS, windowMs = DemoScript.WINDOW_MS, runId = run,
+        calibrationMs = DemoScript.CALIBRATION_MS, windowMs = DemoScript.WINDOW_MS, runId = run, calibrationStartMs = startMs,
     )
     SideEffect { store.setDashboard(dashboard) }
 }

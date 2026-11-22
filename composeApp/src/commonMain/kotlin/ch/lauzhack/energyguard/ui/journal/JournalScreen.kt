@@ -76,7 +76,7 @@ fun JournalScreen(
                 CheckInForm(actions, savedLabel, draft, wide = true)
             }
             LazyColumn(Modifier.weight(0.54f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(EgSpace.s)) {
-                history(state.journal, today, actions, wide = true)
+                history(state.journal, today, actions, wide = true, sample = state.sampleJournal)
             }
         }
     } else {
@@ -86,7 +86,7 @@ fun JournalScreen(
             verticalArrangement = Arrangement.spacedBy(EgSpace.s),
         ) {
             item { CheckInForm(actions, savedLabel, draft, wide = false) }
-            history(state.journal, today, actions, wide = false)
+            history(state.journal, today, actions, wide = false, sample = state.sampleJournal)
         }
     }
 }
@@ -154,9 +154,9 @@ private fun Question(title: String, chosen: String?) {
     Spacer(Modifier.height(EgSpace.xs))
 }
 
-/** Comparison card, then the entries newest first (or a calm empty card). */
-private fun LazyListScope.history(entries: List<JournalEntry>, today: String, actions: JournalActions, wide: Boolean) {
-    item { ComparisonCard(entries) }
+/** Comparison card, then the entries newest first (or a calm empty card). [sample] = demo sample check-ins shown. */
+private fun LazyListScope.history(entries: List<JournalEntry>, today: String, actions: JournalActions, wide: Boolean, sample: Boolean) {
+    item { ComparisonCard(entries, sample) }
     if (entries.isEmpty()) {
         item {
             EgCard(Modifier.fillMaxWidth()) {
@@ -174,10 +174,10 @@ private fun LazyListScope.history(entries: List<JournalEntry>, today: String, ac
 }
 
 @Composable
-private fun ComparisonCard(entries: List<JournalEntry>) {
+private fun ComparisonCard(entries: List<JournalEntry>, sample: Boolean) {
     val c = Eg.colors
     EgCard(Modifier.fillMaxWidth()) {
-        CardTitle("You vs our measure")
+        CardTitle("You vs our measure") { if (sample) Pill("Sample data") }
         Spacer(Modifier.height(EgSpace.xs))
         Text(comparisonText(entries), style = EgType.coach, color = c.text)
         Spacer(Modifier.height(EgSpace.xs))

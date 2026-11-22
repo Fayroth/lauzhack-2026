@@ -8,22 +8,24 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Desktop EnergyCoach: OpenRouter when OPENROUTER_API_KEY is set (env var or .env), offline templates otherwise.
- * EG_COACH=offline forces templates, EG_COACH_MODEL overrides the model. The key is never printed.
+ * The desktop's OpenRouter client, or why there is none ([unavailable] = "no key" / "EG_COACH=offline").
+ * Built once at start; the Profile "AI coach" switch plugs it into the coach or unplugs it (FrugalEnergyCoach.setLlm).
  */
-fun desktopEnergyCoach(): FrugalEnergyCoach {
-    val key = envOrDotEnv("OPENROUTER_API_KEY")?.takeIf { it.isNotBlank() }
-    val offline = System.getenv("EG_COACH") == "offline"
-    val llm = if (key != null && !offline) {
-        val model = System.getenv("EG_COACH_MODEL")?.takeIf { it.isNotBlank() } ?: OpenRouterLlmClient.DEFAULT_MODEL
-        println("[coach] OpenRouter on ($model), max 1 call / 10 min")
-        OpenRouterLlmClient(HttpClient(CIO) { engine { requestTimeout = 5_000 } }, key, model)
-    } else {
-        println("[coach] offline templates (${if (offline) "EG_COACH=offline" else "no OPENROUTER_API_KEY"})")
-        null
-    }
-    return FrugalEnergyCoach(llm, clock = System::currentTimeMillis, dispatcher = Dispatchers.IO)
+class DesktopLlm(val client: LlmClient?, val unavailable: String?)
+
+/** OPENROUTER_API_KEY (env var or .env) -> OpenRouter client; EG_COACH=offline forces none, EG_COACH_MODEL overrides the model. */
+fun desktopLlm(): DesktopLlm {
+    val key = envOrDotEnv("OPENROUTER_API_KEY")?.takeIf { it.isNotBlank() } // never printed
+    if (System.getenv("EG_COACH") == "offline") return DesktopLlm(null, "EG_COACH=offline")
+    if (key == null) return DesktopLlm(null, "no key")
+    val model = System.getenv("EG_COACH_MODEL")?.takeIf { it.isNotBlank() } ?: OpenRouterLlmClient.DEFAULT_MODEL
+    println("[coach] OpenRouter available ($model), max 1 call / 10 min")
+    return DesktopLlm(OpenRouterLlmClient(HttpClient(CIO) { engine { requestTimeout = 5_000 } }, key, model), null)
 }
+
+/** Desktop EnergyCoach, offline templates until [FrugalEnergyCoach.setLlm] plugs a client in (main.kt, from Settings). */
+fun desktopEnergyCoach(): FrugalEnergyCoach =
+    FrugalEnergyCoach(llm = null, clock = System::currentTimeMillis, dispatcher = Dispatchers.IO)
 
 fun localTimeHHmm(): String = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"))
 

@@ -25,6 +25,8 @@ data class AppState(
     val history: List<DaySummary> = emptyList(),   // past days, newest first, max 7
     val demo: Boolean = false,
     val energyHistory: EnergyHistory = EnergyHistory(), // M4.5: today's battery curve (in memory only)
+    val todayAvgConcentration: Int? = null, // M5: today's average concentration so far (calibrated time only)
+    val sampleJournal: Boolean = false,     // M5: journal seeded with SampleData (desktop demo): "Sample data" label
 )
 
 /**

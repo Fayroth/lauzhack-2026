@@ -177,4 +177,23 @@ class EnergyCoachTest {
         val prompt = FrugalEnergyCoach.buildPrompt(input, Intervention.BREAK)
         assertFalse("sleepiness" in prompt || "stress" in prompt || "caffeine" in prompt, prompt)
     }
+
+    @Test
+    fun setLlmSwitchesOnlineOfflineAndKeepsTheCounter() = runTest {
+        val llm = FakeLlm()
+        val c = coach(llm)
+        c.onFatigue(state(Level.OK, 40), "16:20")
+        assertTrue(assertNotNull(c.onFatigue(state(Level.TIRED, 62), "16:20")).fromLlm)
+        c.setLlm(null) // Profile switch off: templates only, nothing sent
+        assertFalse(c.online)
+        now += 20 * 60_000L
+        c.onFatigue(state(Level.OK, 40), "16:40")
+        assertFalse(assertNotNull(c.onFatigue(state(Level.TIRED, 63), "16:40")).fromLlm)
+        assertEquals(1, llm.prompts.size)
+        c.setLlm(llm) // back on: same counter, same rate limit
+        now += 20 * 60_000L
+        assertTrue(assertNotNull(c.onFatigue(state(Level.OK, 40), "17:00")).fromLlm) // RECOVERED, via the LLM again
+        assertEquals(2, c.llmCallCount.value)
+        assertFalse(assertNotNull(c.onFatigue(state(Level.TIRED, 64), "17:00")).fromLlm) // rate limit kept
+    }
 }

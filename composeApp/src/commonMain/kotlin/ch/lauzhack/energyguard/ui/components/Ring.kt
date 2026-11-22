@@ -29,8 +29,9 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * The C2 signature ring: track, progress arc from 12 o'clock with round caps, a fake glow (the same arc drawn twice
- * wider at alpha 0.12 and 0.2, no blur API), 60 tick marks outside (every 5th longer), the number in the centre and a
+ * The C2 signature ring: track, progress arc from 12 o'clock with round caps, a soft fake glow (the same arc drawn
+ * [GLOW_PASSES] times, wider and fainter each time, so the alphas stack into a smooth falloff with no visible band;
+ * no blur API; fainter on the light theme), 60 tick marks outside (every 5th longer), the number in the centre and a
  * small unit under it. Value, sweep and colour animate over [EG_ANIM_MS].
  *
  * [value] in 0..[max]; [number] overrides the centre text (calibration countdown "12s").
@@ -82,8 +83,11 @@ fun Ring(
             drawCircle(c.track, ringR, center, style = Stroke(w))
             if (sweep > 0.003f) {
                 val deg = 360f * sweep
-                drawArc(arc.copy(alpha = 0.12f), -90f, deg, false, topLeft, arcSize, style = Stroke(w * 2.2f, cap = StrokeCap.Round))
-                drawArc(arc.copy(alpha = 0.2f), -90f, deg, false, topLeft, arcSize, style = Stroke(w * 1.55f, cap = StrokeCap.Round))
+                val glow = if (c.isDark) GLOW_ALPHA else GLOW_ALPHA * 0.6f
+                for (i in 0 until GLOW_PASSES) { // widest first: 2.2x .. 1.15x the stroke
+                    val width = w * (2.2f - i * (2.2f - 1.15f) / (GLOW_PASSES - 1))
+                    drawArc(arc.copy(alpha = glow), -90f, deg, false, topLeft, arcSize, style = Stroke(width, cap = StrokeCap.Round))
+                }
                 drawArc(arc, -90f, deg, false, topLeft, arcSize, style = Stroke(w, cap = StrokeCap.Round))
             }
         }
@@ -93,6 +97,10 @@ fun Ring(
         }
     }
 }
+
+/** Glow passes of [Ring] and the alpha of each (they stack: ~0.13 next to the arc, 0.025 at the outer edge). */
+private const val GLOW_PASSES = 5
+private const val GLOW_ALPHA = 0.026f
 
 /**
  * Sparkline of the last values (oldest first): a 2 dp line, no axes. Values are scaled to their own min..max

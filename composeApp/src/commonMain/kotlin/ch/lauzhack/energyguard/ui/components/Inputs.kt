@@ -12,7 +12,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -76,7 +83,7 @@ fun ScalePicker(
 }
 
 /**
- * − value + for a small count (cups of coffee). null = not set ("–"); − from [range].first clears it, + from null
+ * − value + for a small count (cups of coffee). null = not set (shows "0", muted); − from [range].first clears it, + from null
  * starts at [range].first + 1.
  */
 @Composable
@@ -88,7 +95,7 @@ fun Stepper(value: Int?, range: IntRange, onChange: (Int?) -> Unit, unit: (Int) 
             Modifier.size(CONTROL_HEIGHT), primary = false, enabled = value != null, contentPadding = 0.dp,
         )
         Text(
-            if (value == null) "–" else "$value ${unit(value)}", style = EgType.bodyStrong,
+            if (value == null) "0 ${unit(0)}" else "$value ${unit(value)}", style = EgType.bodyStrong,
             color = if (value == null) c.muted else c.text, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
         )
         EgButton(
@@ -106,5 +113,55 @@ fun LockedNote(text: String, modifier: Modifier = Modifier) {
         Icon(EgIcon.LOCK, c.label, size = 16.dp)
         Spacer(Modifier.width(EgSpace.xs))
         Text(text, style = EgType.small, color = c.label)
+    }
+}
+
+/**
+ * C2 switch: 52x32 pill track, lime with a black knob when on, raised with a border and a muted knob when off.
+ * Drawing only: put it in a [SettingRow] (the whole row is the touch target).
+ */
+@Composable
+fun EgSwitch(checked: Boolean, enabled: Boolean = true, modifier: Modifier = Modifier) {
+    val c = Eg.colors
+    val track by animateColorAsState(if (checked && enabled) c.accent else c.raised, tween(EG_ANIM_MS / 2), label = "switchTrack")
+    val knobX by animateDpAsState(if (checked) 24.dp else 4.dp, tween(EG_ANIM_MS / 2), label = "switchKnob")
+    Box(
+        modifier.width(52.dp).height(32.dp).clip(CircleShape).background(track)
+            .then(if (checked && enabled) Modifier else Modifier.border(1.dp, c.border, CircleShape)),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            Modifier.offset(x = knobX).size(24.dp)
+                .background(if (checked && enabled) c.onAccent else if (enabled) c.muted else c.track, CircleShape),
+        )
+    }
+}
+
+/**
+ * One settings line: title (+ optional secondary line) on the left, a switch on the right. The whole row toggles
+ * (Role.Switch, >= 48 dp). [enabled] = false greys the switch and ignores taps (e.g. "offline (no key)").
+ */
+@Composable
+fun SettingRow(
+    title: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    enabled: Boolean = true,
+) {
+    val c = Eg.colors
+    Row(
+        modifier.fillMaxWidth().height(if (subtitle != null) 64.dp else CONTROL_HEIGHT)
+            .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = EgType.bodyStrong, color = if (enabled) c.text else c.muted, maxLines = 1)
+            if (subtitle != null) Text(subtitle, style = EgType.small, color = c.label, maxLines = 1)
+        }
+        Spacer(Modifier.width(EgSpace.s))
+        EgSwitch(checked, enabled)
     }
 }

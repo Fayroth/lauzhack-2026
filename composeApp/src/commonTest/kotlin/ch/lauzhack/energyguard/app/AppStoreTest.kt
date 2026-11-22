@@ -194,4 +194,24 @@ class AppStoreTest {
         store.onCoach(null, llmCallCount = 2)
         assertEquals(2, store.state.value.stats.llmCalls)
     }
+
+    @Test fun settingsSurviveARestart() {
+        val disk = InMemoryPersistence()
+        clock.store(disk).updateSettings { it.copy(hapticsOn = false, coachOnline = false, theme = ThemeMode.LIGHT) }
+        val s = clock.store(disk).state.value.settings
+        assertEquals(false, s.hapticsOn)
+        assertEquals(false, s.coachOnline)
+        assertEquals(ThemeMode.LIGHT, s.theme)
+    }
+
+    @Test fun demoSampleJournalIsLabelledAndNeverSaved() {
+        val disk = InMemoryPersistence()
+        val store = AppStore({ clock.now }, clock::day, disk, demo = true, syncSleepPrior = false, sampleJournal = true)
+        assertEquals(12, store.state.value.journal.size)
+        assertTrue(store.state.value.sampleJournal)
+        assertTrue(disk.journal.isEmpty())
+        val real = AppStore({ clock.now }, clock::day, InMemoryPersistence(), syncSleepPrior = false)
+        assertTrue(real.state.value.journal.isEmpty())
+        assertEquals(false, real.state.value.sampleJournal)
+    }
 }

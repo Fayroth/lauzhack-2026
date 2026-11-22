@@ -26,6 +26,7 @@ import kotlin.math.roundToInt
  * @param demo battery time accelerated ×[EnergyBattery.DEMO_TIME_SCALE] (same model).
  * @param persistHistory false = daily history is neither loaded nor written (demo data is not real data).
  * @param syncSleepPrior keep Settings.sleepHours and the global SleepPrior (header slider) in sync. Off in tests.
+ * @param sampleJournal start with [SampleData.journal] when the journal is empty (desktop demo only; never saved).
  */
 class AppStore(
     private val clock: () -> Long,
@@ -34,6 +35,7 @@ class AppStore(
     private val demo: Boolean = false,
     private val persistHistory: Boolean = !demo,
     private val syncSleepPrior: Boolean = true,
+    private val sampleJournal: Boolean = false,
 ) {
     private val timeScale = if (demo) EnergyBattery.DEMO_TIME_SCALE else 1.0
 
@@ -72,7 +74,7 @@ class AppStore(
             if (it.sleepDay == today) it else it.copy(sleepHours = Settings.DEFAULT_SLEEP_HOURS, sleepDay = null)
         }
         if (syncSleepPrior) SleepPrior.hours = settings.sleepHours
-        journal = persistence.loadJournal()
+        journal = persistence.loadJournal().ifEmpty { if (sampleJournal) SampleData.journal(now) else emptyList() }
         val saved = if (persistHistory) persistence.loadHistory() else emptyList()
         history = saved.filter { it.day < today }.sortedByDescending { it.day }.take(MAX_HISTORY_DAYS)
         val resumed = saved.firstOrNull { it.day == today }
@@ -373,6 +375,8 @@ class AppStore(
             history = history,
             demo = demo,
             energyHistory = EnergyHistory(historyStartMs, historyValues),
+            todayAvgConcentration = if (concentrationSamples > 0) (concentrationSum / concentrationSamples).toInt() else null,
+            sampleJournal = sampleJournal,
         )
     }
 

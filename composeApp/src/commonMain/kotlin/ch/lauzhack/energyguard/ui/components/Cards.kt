@@ -142,9 +142,12 @@ fun GlowDot(color: Color, size: Dp = 8.dp, glow: Boolean = true) {
     })
 }
 
-/** State chip: filled state colour, dark text ("Tired"). Muted raised chip while calibrating. */
+/**
+ * State chip: filled state colour, dark text ("Tired"). Muted raised chip while calibrating, with the countdown
+ * when [secondsLeft] is known ("Calibrating… 12 s").
+ */
 @Composable
-fun LevelChip(level: Level, modifier: Modifier = Modifier, calibrating: Boolean = false) {
+fun LevelChip(level: Level, modifier: Modifier = Modifier, calibrating: Boolean = false, secondsLeft: Int? = null) {
     val c = Eg.colors
     val fill by animateColorAsState(if (calibrating) c.raised else c.levelFill(level), tween(EG_ANIM_MS), label = "levelChip")
     Box(
@@ -153,7 +156,12 @@ fun LevelChip(level: Level, modifier: Modifier = Modifier, calibrating: Boolean 
             .padding(horizontal = 14.dp, vertical = 6.dp),
     ) {
         Text(
-            if (calibrating) "Calibrating" else levelLabel(level), style = EgType.bodyStrong,
+            when {
+                calibrating && secondsLeft != null -> "Calibrating… $secondsLeft s"
+                calibrating -> "Calibrating"
+                else -> levelLabel(level)
+            },
+            style = EgType.bodyStrong,
             color = if (calibrating) c.muted else c.onAccent, maxLines = 1,
         )
     }

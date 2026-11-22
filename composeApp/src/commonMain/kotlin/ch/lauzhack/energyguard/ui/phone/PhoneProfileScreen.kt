@@ -33,7 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import ch.lauzhack.energyguard.app.ThemeMode
+import ch.lauzhack.energyguard.app.AppState
+import ch.lauzhack.energyguard.ui.profile.Last7DaysCard
+import ch.lauzhack.energyguard.ui.profile.SettingsActions
+import ch.lauzhack.energyguard.ui.profile.SettingsCard
 import ch.lauzhack.energyguard.companion.PairingTarget
 import ch.lauzhack.energyguard.ui.components.Eg
 import ch.lauzhack.energyguard.ui.components.EgButton
@@ -43,7 +46,9 @@ import ch.lauzhack.energyguard.ui.components.EgType
 import ch.lauzhack.energyguard.ui.components.tracksTextFocus
 
 /**
- * Profile tab on the phone (M3): the PC pairing (status, "Change PC", the IP / port / code form) and the theme.
+ * Profile tab on the phone (M3, M5): the PC pairing (status, "Change PC", the IP / port / code form), sleep, last 7 days,
+ * settings (haptics, AI coach: always offline templates on the phone, light mode) and privacy. [state] = what is shown
+ * (its settings are the phone's own, see CompanionState.toAppState).
  * The pairing itself is saved by the Android shell (private prefs); this screen only validates through
  * [PairingTarget.parse], so the URL is never built from raw text.
  */
@@ -53,9 +58,9 @@ fun PhoneProfileScreen(
     savedHost: String,
     savedPort: Int,
     error: String?,
-    theme: ThemeMode,
+    state: AppState,
     onConnect: (PairingTarget) -> Unit,
-    onToggleTheme: () -> Unit,
+    settingsActions: SettingsActions,
     modifier: Modifier = Modifier,
     sleepHours: Double? = null,
     onSleepHours: ((Double) -> Unit)? = null,
@@ -103,6 +108,9 @@ fun PhoneProfileScreen(
                 }
             }
         }
+        Last7DaysCard(state, Modifier.fillMaxWidth(), chartHeight = 96.dp, compact = true)
+        // No API key ever goes on the phone: its coach is the offline templates (live, the PC's coach note is shown).
+        SettingsCard(state.settings, settingsActions, coachUnavailable = "no key", hapticsWhat = "Phone", modifier = Modifier.fillMaxWidth())
         EgCard(Modifier.fillMaxWidth()) {
             Text("Privacy", style = EgType.title, color = c.text)
             Spacer(Modifier.height(EgSpace.xs))
@@ -110,11 +118,6 @@ fun PhoneProfileScreen(
                 "The phone only reads numbers from your PC (score, battery, blink rate…). It never receives images, audio or keystrokes, and it can't change anything on the PC.",
                 style = EgType.body, color = c.text,
             )
-        }
-        EgCard(Modifier.fillMaxWidth()) {
-            Text("Appearance", style = EgType.title, color = c.text)
-            Spacer(Modifier.height(EgSpace.xs))
-            EgButton(if (theme == ThemeMode.LIGHT) "Switch to dark mode" else "Switch to light mode", onToggleTheme, Modifier.fillMaxWidth(), primary = false)
         }
     }
 }

@@ -41,7 +41,9 @@ import ch.lauzhack.energyguard.ui.components.Icon
 import ch.lauzhack.energyguard.ui.components.Pill
 import ch.lauzhack.energyguard.ui.journal.JournalActions
 import ch.lauzhack.energyguard.ui.journal.JournalScreen
+import ch.lauzhack.energyguard.ui.profile.ProfileActions
 import ch.lauzhack.energyguard.ui.profile.ProfileScreen
+import ch.lauzhack.energyguard.ui.profile.Sharing
 import ch.lauzhack.energyguard.ui.today.TodayActions
 import ch.lauzhack.energyguard.ui.today.TodayScreen
 import ch.lauzhack.energyguard.ui.today.liveSignals
@@ -49,7 +51,8 @@ import ch.lauzhack.energyguard.ui.today.liveSignals
 /**
  * Desktop shell (C2): header (wordmark | segmented tabs | status pill + theme toggle) over the tab content, all driven
  * by [state]. [overlay] is drawn over everything (break alert). Theme = Settings.theme (the old Warm palette follows).
- * [pairing] = the phone companion's "address · code" line (Profile tab only), null when the companion is off.
+ * Profile tab: [profile] actions, [sharing] = phone companion switch + "address · code", [coachUnavailable] = why the AI
+ * coach can't go online (null if it can).
  */
 @Composable
 fun DesktopShell(
@@ -58,13 +61,17 @@ fun DesktopShell(
     onTab: (Tab) -> Unit,
     today: TodayActions,
     onToggleTheme: () -> Unit,
-    pairing: String? = null,
+    sharing: Sharing = Sharing(on = false),
     journal: JournalActions = JournalActions(),
+    profile: ProfileActions = ProfileActions(onSleepHours = today.onSleepHours),
+    coachUnavailable: String? = null,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val light = state.settings.theme == ThemeMode.LIGHT
     SideEffect { Warm.light = light } // break overlay + inbox window still read Warm
-    DesignScale { ShellContent(state, tab, onTab, today, journal, onToggleTheme, pairing, overlay) }
+    DesignScale { ShellContent(state, tab, onTab, today, journal, onToggleTheme, overlay) {
+        ProfileScreen(state, profile, sharing, coachUnavailable)
+    } }
 }
 
 /** Design size of the content area (1440x900 window minus the title bar). */
@@ -92,8 +99,8 @@ private fun ShellContent(
     today: TodayActions,
     journal: JournalActions,
     onToggleTheme: () -> Unit,
-    pairing: String?,
     overlay: @Composable BoxScope.() -> Unit,
+    profileTab: @Composable () -> Unit,
 ) {
     EgTheme(state.settings.theme) {
         val c = Eg.colors
@@ -105,7 +112,7 @@ private fun ShellContent(
                     when (tab) {
                         Tab.TODAY -> TodayScreen(state, today)
                         Tab.JOURNAL -> JournalScreen(state, journal, wide = true)
-                        Tab.PROFILE -> ProfileScreen(state, today.onSleepHours, onToggleTheme, pairing)
+                        Tab.PROFILE -> profileTab()
                     }
                 }
             }

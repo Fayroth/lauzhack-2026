@@ -15,5 +15,6 @@ data class DashboardState(
     val llmCallCount: Int = 0,         // real LLM calls so far (frugality counter #14)
     val calibrationMs: Long = FatigueEngine.DEFAULT_CALIBRATION_MS, // engine's calibration length: countdown source
     val windowMs: Long = FatigueEngine.DEFAULT_WINDOW_MS,           // engine's rolling window: "over the last ..." label
-    val runId: Int = 0,                // changes when the engine restarts (F5 demo replay): key per-run UI state on it
+    val runId: Int = 0,                // changes when the engine restarts (F5 demo replay, Recalibrate): key per-run UI state on it
+    val calibrationStartMs: Long = 0,  // wall clock when this engine started calibrating (0 = unknown: count from first shown)
 )
