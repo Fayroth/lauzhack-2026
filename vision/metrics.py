@@ -2,7 +2,11 @@
 
 Our code. Formulas from the literature (cited in docs/BUILD_LOG.md):
 - EAR (Soukupova & Cech 2016) on the standard MediaPipe eye indices, averaged over both eyes.
-- PERCLOS (Wierwille 1994, Dinges 1998): fraction of the last 60 s with eyes >= 80 % closed.
+- PERCLOS (Wierwille 1994, Dinges 1998): fraction of the last 60 s with the eyes closed beyond a level. The studies
+  used P80 (>= 80 % of the pupil covered, dedicated sensors) and also tested P70. Our closure is a blendshape score (or
+  EAR vs baseline), not pupil coverage: on the real camera, heavy half-closed lids read eyeBlink 0.45-0.77, only ~2 %
+  of the time >= 0.8 but ~50 % >= 0.5. So we use 0.5 on OUR scale (P50-like, --perclos-level to tune 0.5-0.6).
+  It is inspired by PERCLOS, not the validated P80 itself.
 - eyesClosed: closure >= 60 % (hysteresis, reopen < 30 %) held for >= 200 ms, so one noisy frame is never "closed".
   The engine needs > 3 s of it for a micro-sleep (Euro NCAP tests with eyes closed up to 4 s).
 - Blinks: 50-500 ms closures (spontaneous blinks < 0.4 s, drowsy blinks longer); longer = prolonged closure, no blink.
@@ -22,7 +26,7 @@ LEFT_EYE = (362, 385, 387, 263, 373, 380)
 CALIB_S = 5.0          # first seconds WITH a face: EAR baseline (eyes assumed mostly open)
 WINDOW_S = 60.0        # blinkCount and PERCLOS window (docs/API.md)
 CLOSE_ON, CLOSE_OFF = 0.6, 0.3  # hysteresis (spike #25 + bs_miclos: tighter = fragmented closures)
-PERCLOS_LEVEL = 0.8    # "eyes >= 80 % closed"
+PERCLOS_LEVEL = 0.5    # closure counted as "closed" for PERCLOS (see docstring: P50 on our scale, heavy lids count)
 EAR_CLOSED_RATIO = 0.25  # EAR path: closure = 1 when EAR <= 25 % of baseline (spike #25: blinks reach ~12-20 %)
 MIN_BLINK_MS = 50
 MAX_BLINK_MS = 500     # longer = prolonged closure (glance down, micro-sleep), not a blink: keeps lastBlinkMs clean
@@ -64,7 +68,8 @@ def head_pose(mesh) -> tuple[float, float]:
 class EyeMetrics:
     """Feed one mesh per new camera result; get the docs/API.md eye fields back."""
 
-    def __init__(self) -> None:
+    def __init__(self, perclos_level: float = PERCLOS_LEVEL) -> None:
+        self.perclos_level = perclos_level
         self.calib: list[float] = []
         self.calib_face_s = 0.0
         self.baseline: float | None = None
@@ -72,7 +77,7 @@ class EyeMetrics:
         self.closed_since: float | None = None
         self.blinks: deque[tuple[float, float]] = deque()   # (end time, duration ms)
         self.last_blink_ms: int | None = None
-        self.samples: deque[tuple[float, float, bool]] = deque()  # (t, dt, >= 80 % closed) for PERCLOS
+        self.samples: deque[tuple[float, float, bool]] = deque()  # (t, dt, closed >= perclos_level) for PERCLOS
         self.eye_s = 0.0  # seconds of trusted eye data since start (for the blink-rate extrapolation)
         self.last_t: float | None = None
         self.jaw_since: float | None = None
@@ -123,7 +128,7 @@ class EyeMetrics:
             self._end_closure(t, count=True)
 
         self.eye_s += dt
-        self.samples.append((t, dt, closure >= PERCLOS_LEVEL))
+        self.samples.append((t, dt, closure >= self.perclos_level))
         while self.samples and self.samples[0][0] < t - WINDOW_S:
             self.samples.popleft()
         while self.blinks and self.blinks[0][0] < t - WINDOW_S:

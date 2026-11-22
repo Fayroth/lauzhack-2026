@@ -20,7 +20,7 @@ from pathlib import Path
 
 import websockets
 
-from metrics import EyeMetrics
+from metrics import PERCLOS_LEVEL, EyeMetrics
 from sources import DEFAULT_MODEL, SourceUnavailable, open_source
 
 HOST = "localhost"
@@ -65,13 +65,13 @@ class Pipeline:
         self.args = args
         self.latest: dict | None = None
         self.src = None
-        self.metrics = EyeMetrics()
+        self.metrics = EyeMetrics(args.perclos_level)
         self.n_new = 0
 
     def _open(self, kind: str) -> None:
         self.src = open_source(kind, Path(self.args.model), self.args.camera, self.args.rgb_device,
                                blendshapes=not self.args.no_blendshapes)
-        self.metrics = EyeMetrics()  # new source = new personal baseline
+        self.metrics = EyeMetrics(self.args.perclos_level)  # new source = new personal baseline
         bs = "blendshapes" if getattr(self.src, "blendshapes", True) else "EAR + baseline"
         print(f"[vision] source: {self.src.name} (eye closure from {bs}); calibrating ~5 s, keep eyes open")
 
@@ -126,6 +126,8 @@ async def main() -> None:
     parser.add_argument("--camera", type=int, default=0, help="webcam index for the MediaPipe fallback")
     parser.add_argument("--rgb-device", type=int, default=None,
                         help="index of the prototype RGB camera to keep its stream open (only if results freeze)")
+    parser.add_argument("--perclos-level", type=float, default=PERCLOS_LEVEL,
+                        help="closure (0..1) counted as closed for PERCLOS (default 0.5; studies: 0.8 of pupil)")
     parser.add_argument("--no-blendshapes", action="store_true",
                         help="LogiInsight: eye closure from EAR + baseline only (if blendshapes look wrong)")
     args = parser.parse_args()
@@ -152,3 +154,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except SourceUnavailable as e:
         raise SystemExit(f"[vision] no face mesh source available: {e}")
+    except KeyboardInterrupt:
+        print("[vision] stopped")
