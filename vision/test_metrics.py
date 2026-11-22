@@ -105,3 +105,18 @@ def test_short_closures_are_not_eyes_closed():
         t += 1 / 27
         out = em.update(t, mesh_with_ear(0.26))
     assert len(em.blinks) == 1, "a 1 s closure is not a blink"
+
+
+def test_heavy_lids_raise_perclos():
+    # bs_miclos (real camera): eyeBlink 0.45-0.77 for 15 s. P80 saw ~nothing, our 0.5 level must see it.
+    def run(level):
+        em, t = EyeMetrics(level), 0.0
+        for _ in range(27 * 20):
+            out = em.update(t, mesh_with_ear(0.26), blink_score=0.05)
+            t += 1 / 27
+        for i in range(27 * 15):
+            out = em.update(t, mesh_with_ear(0.15), blink_score=0.45 + 0.32 * ((i % 7) / 6))
+            t += 1 / 27
+        return out["perclos"]
+    assert run(0.8) < 0.05
+    assert run(0.5) > 0.3  # ~15 s closed in the last ~35 s
