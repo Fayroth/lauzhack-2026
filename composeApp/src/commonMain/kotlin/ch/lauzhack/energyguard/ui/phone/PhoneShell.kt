@@ -1,6 +1,17 @@
 package ch.lauzhack.energyguard.ui.phone
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.sp
+import ch.lauzhack.energyguard.ui.components.Divider
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -12,9 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,7 +52,7 @@ sealed interface PhoneLink {
 }
 
 /**
- * Phone shell (M3): header (logo + "Live from your PC" / "Demo" chip), tab content, Material 3 bottom bar.
+ * Phone shell (M3, C2 style): header (logo + tab title, "Live from your PC" / "Demo" pill), tab content, C2 bottom bar.
  * Shared (commonMain) so the render test draws exactly what the phone shows; the Android-only parts (system back,
  * edge-to-edge, saved pairing, polling) live in androidMain/ui/AndroidShell.kt. [profile] = the Profile tab content.
  * Insets: the header pads the status bar, the bottom bar pads the navigation bar (edge-to-edge on Android, 0 on desktop).
@@ -67,7 +75,7 @@ fun PhoneShell(
         Scaffold(
             containerColor = c.background,
             contentWindowInsets = WindowInsets(0),
-            topBar = { PhoneHeader(state, link) },
+            topBar = { PhoneHeader(state, link, tab) },
             bottomBar = { PhoneNavBar(tab, onTab) },
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
@@ -83,37 +91,45 @@ fun PhoneShell(
 }
 
 @Composable
-private fun PhoneHeader(state: AppState, link: PhoneLink) {
+private fun PhoneHeader(state: AppState, link: PhoneLink, tab: Tab) {
     val c = Eg.colors
     Row(
-        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars).height(64.dp).padding(horizontal = EgSpace.s),
+        Modifier.fillMaxWidth().background(c.background).windowInsetsPadding(WindowInsets.statusBars).height(68.dp)
+            .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        EnergyGuardLogo(state.dashboard.fatigue, Modifier.height(24.dp).width(44.dp))
+        EnergyGuardLogo(size = 28.dp)
         Spacer(Modifier.width(12.dp))
-        Text("EnergyGuard", style = EgType.title, color = c.text)
+        Text(tab.label, style = EgType.screenTitle.copy(fontSize = 26.sp, lineHeight = 32.sp), color = c.text)
         Spacer(Modifier.weight(1f))
-        if (link is PhoneLink.Live) Pill("Live from your PC", c.fresh, dot = true)
-        else Pill("Demo", c.accent, filled = true)
+        if (link is PhoneLink.Live) Pill("Live from your PC", dot = c.accent)
+        else Pill("Demo", dot = c.accent)
     }
 }
 
+/** C2 bottom bar: #0D0D10, selected item = lime-tinted pill with a lime icon; the whole cell is the touch target. */
 @Composable
 private fun PhoneNavBar(tab: Tab, onTab: (Tab) -> Unit) {
     val c = Eg.colors
-    NavigationBar(containerColor = c.surface) {
-        Tab.entries.forEach { t ->
-            val selected = t == tab
-            NavigationBarItem( // M3 item: 80 dp high, the whole cell is the touch target (>= 48 dp)
-                selected = selected,
-                onClick = { onTab(t) },
-                icon = { Icon(t.icon, if (selected) c.accent else c.muted, size = 24.dp) },
-                label = { Text(t.label, style = EgType.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedTextColor = c.text, unselectedTextColor = c.muted,
-                    indicatorColor = c.accent.copy(alpha = if (c.isDark) 0.18f else 0.12f),
-                ),
-            )
+    Column(Modifier.fillMaxWidth().background(c.navBar)) {
+        Divider()
+        Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).height(76.dp)) {
+            Tab.entries.forEach { t ->
+                val selected = t == tab
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().selectable(selected, role = Role.Tab) { onTab(t) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(
+                        Modifier.width(64.dp).height(32.dp)
+                            .background(if (selected) c.accent.copy(alpha = 0.14f) else Color.Transparent, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(t.icon, if (selected) c.accent else c.muted, size = 22.dp) }
+                    Spacer(Modifier.height(4.dp))
+                    Text(t.label, style = EgType.small, color = if (selected) c.text else c.muted)
+                }
+            }
         }
     }
 }

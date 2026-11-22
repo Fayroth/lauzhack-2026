@@ -104,7 +104,7 @@ class PhoneRenderTest {
         val demo = pc.copy(settings = pc.settings.copy(theme = ThemeMode.DARK))
         render("phone-profile-not-paired") {
             PhoneShell(demo, demo.liveSignals(), PhoneLink.NotPaired, Tab.PROFILE, {}, TodayActions(), {}) {
-                PhoneProfileScreen(PhoneLink.NotPaired, "192.168.1.20", 8767, null, ThemeMode.DARK, {}, {})
+                PhoneProfileScreen(PhoneLink.NotPaired, "192.168.1.20", 8767, null, ThemeMode.DARK, {}, {}, sleepHours = 6.0, onSleepHours = {})
             }
         }
     }
@@ -114,7 +114,7 @@ class PhoneRenderTest {
         val link = PhoneLink.Live("192.168.1.20:8767")
         render("phone-profile-live-light") {
             PhoneShell(state, signals, link, Tab.PROFILE, {}, TodayActions(), {}) {
-                PhoneProfileScreen(link, "192.168.1.20", 8767, null, ThemeMode.LIGHT, {}, {})
+                PhoneProfileScreen(link, "192.168.1.20", 8767, null, ThemeMode.LIGHT, {}, {}, sleepHours = state.settings.sleepHours)
             }
         }
     }

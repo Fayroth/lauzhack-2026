@@ -24,7 +24,20 @@ data class AppState(
     val settings: Settings = Settings(),
     val history: List<DaySummary> = emptyList(),   // past days, newest first, max 7
     val demo: Boolean = false,
+    val energyHistory: EnergyHistory = EnergyHistory(), // M4.5: today's battery curve (in memory only)
 )
+
+/**
+ * Battery through the day (Today chart), in memory only: one sample per [STEP_MIN] min of app time (accelerated in
+ * demo), oldest first, the first one at app start / day start / demo replay. [startMs] = wall clock of the first one.
+ */
+data class EnergyHistory(val startMs: Long = 0, val values: List<Int> = emptyList()) {
+    companion object {
+        const val STEP_MIN = 5
+        const val STEP_MS = STEP_MIN * 60_000L
+        const val MAX_SAMPLES = 24 * 60 / STEP_MIN
+    }
+}
 
 /** Live concentration: 100 - fatigue score, with the engine's level and top-3 reasons. */
 data class Concentration(
@@ -164,7 +177,8 @@ data class DaySummary(
 data class Profile(val baseline: BaselineSummary = BaselineSummary.Empty)
 
 /** Last coach message with its "AI" / "offline" tag. */
-data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Boolean) {
+/** [ts] = when the note arrived (store clock), null if unknown (phone: not on the wire). */
+data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Boolean, val ts: Long? = null) {
     val tag: String get() = if (fromLlm) "AI" else "offline"
 
     companion object {

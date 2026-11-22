@@ -227,7 +227,7 @@ fun main() = application {
                     onToggleTheme = {
                         store.updateSettings { s -> s.copy(theme = if (s.theme == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT) }
                     },
-                    footer = companion?.pairingLabel,
+                    pairing = companion?.pairingLabel, // shown on Profile only
                     journal = remember(store) {
                         JournalActions(onSave = { k, s, c, n -> store.addJournalEntry(k, s, c, n) }, onDelete = store::deleteJournalEntry)
                     },

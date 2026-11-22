@@ -7,6 +7,7 @@ import ch.lauzhack.energyguard.app.AppState
 import ch.lauzhack.energyguard.app.CoachNote
 import ch.lauzhack.energyguard.app.Concentration
 import ch.lauzhack.energyguard.app.DayStats
+import ch.lauzhack.energyguard.app.EnergyHistory
 import ch.lauzhack.energyguard.app.EnergyState
 import ch.lauzhack.energyguard.app.Profile
 import ch.lauzhack.energyguard.app.Settings
@@ -59,19 +60,28 @@ class ShellRenderTest {
         concentration = Concentration.from(fatigue),
         energy = EnergyState(battery = battery, onBreak = onBreak, startFromSleep = 90),
         recovery = 71,
-        coach = if (coach) CoachNote("Your eyes are closing 4x more than this morning. Take 5 minutes away from the screen.", Intervention.BREAK, fromLlm = true) else null,
+        coach = if (coach) CoachNote("Your eyes are closing 4x more than this morning. Take 5 minutes away from the screen.", Intervention.BREAK, fromLlm = true, ts = System.currentTimeMillis()) else null,
         stats = DayStats(day = "2026-11-21", focusedMs = 4_320_000, breaksTaken = 1, breaksNeeded = 1, longestFocusMs = 2_580_000, phishingBlocked = 1, llmCalls = 2),
         settings = Settings(sleepHours = 6.0, theme = theme),
         profile = Profile(BaselineSummary(calibrated = true, mouseJitter = 1.2)),
         demo = true,
+        energyHistory = EnergyHistory(0, energyCurve(90, battery)),
     )
+
+    /** A plausible morning: slow decline, a small rebound after a break, then a steeper drop. */
+    private fun energyCurve(from: Int, to: Int, n: Int = 60): List<Int> = (0 until n).map { i ->
+        val t = i / (n - 1.0)
+        val base = from + (to - from) * t * t.coerceAtLeast(0.6)
+        val rebound = if (t in 0.45..0.6) 4 * kotlin.math.sin((t - 0.45) / 0.15 * Math.PI) else 0.0
+        (base + rebound).toInt().coerceIn(0, 100)
+    }.toMutableList().also { it[it.lastIndex] = to }
 
     /** The TIRED sample, also mirrored to the phone by PhoneRenderTest. */
     internal fun pcState() = sample(ThemeMode.DARK)
 
-    private fun render(name: String, state: AppState, tab: Tab = Tab.TODAY, w: Int = 1440, h: Int = 860) {
+    private fun render(name: String, state: AppState, tab: Tab = Tab.TODAY, w: Int = 1440, h: Int = 860, pairing: String? = "Phone: 192.168.1.20:8767 · code 123456") {
         val bytes = ImageComposeScene(w, h, Density(1f)).use { scene ->
-            scene.setContent { DesktopShell(state, tab, {}, TodayActions(), {}, footer = "Phone: 192.168.1.20:8767 · code 123456") }
+            scene.setContent { DesktopShell(state, tab, {}, TodayActions(), {}, pairing = pairing) }
             scene.render(0)
             scene.render(2_000_000_000L) // let tab indicator / value animations settle
             scene.render(4_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes
@@ -92,6 +102,15 @@ class ShellRenderTest {
         sample(ThemeMode.DARK, FatigueState(86, Level.EXHAUSTED, listOf("eyes closing +520%", "shaky mouse +70%"), calibrated = true), battery = 24),
     )
     @Test fun todaySmallWindow() = render("today-dark-1280x680", sample(ThemeMode.DARK), w = 1280, h = 680)
+
+    @Test fun profileDark() = render("profile-dark", sample(ThemeMode.DARK).let { it.copy(profile = Profile(baseline())) }, Tab.PROFILE)
+    @Test fun profileLightCompanionOff() = render(
+        "profile-light", sample(ThemeMode.LIGHT).let { it.copy(profile = Profile(baseline())) }, Tab.PROFILE, pairing = null,
+    )
+
+    private fun baseline() = BaselineSummary(
+        calibrated = true, blinkRatePerMin = 14.0, blinkMs = 180.0, perclos = 0.06, mouseJitter = 1.2, interKeyMs = 205.0, backspaceRatio = 0.05,
+    )
     /** A few days of check-ins, newest first, with today = the real local day (so "Today" / "Yesterday" labels show). */
     internal fun withJournal(s: AppState, count: Int = 12): AppState {
         val now = System.currentTimeMillis()

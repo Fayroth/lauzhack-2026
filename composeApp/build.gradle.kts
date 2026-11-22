@@ -26,6 +26,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation(compose.components.resources) // bundled fonts (Bricolage Grotesque + Geist, OFL)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.core) // EnergyCoach -> OpenRouter (engine chosen per platform)
@@ -78,6 +79,11 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+}
+
+compose.resources {
+    packageOfResClass = "ch.lauzhack.energyguard.resources"
+    generateResClass = always
 }
 
 compose.desktop {

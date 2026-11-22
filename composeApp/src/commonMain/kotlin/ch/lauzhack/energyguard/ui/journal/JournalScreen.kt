@@ -100,7 +100,7 @@ private fun CheckInForm(actions: JournalActions, savedLabel: String?, draft: Jou
     var note by remember { mutableStateOf(draft.note) }
     val gap = if (wide) EgSpace.m else EgSpace.s
     EgCard(Modifier.fillMaxWidth()) {
-        CardTitle("How do you feel?") { Pill("All optional", c.muted) }
+        CardTitle("How do you feel?") { Pill("All optional") }
         Spacer(Modifier.height(gap))
 
         Question("Sleepiness", kss?.let { "$it · ${KSS_LABELS[it]}" })
@@ -137,7 +137,7 @@ private fun CheckInForm(actions: JournalActions, savedLabel: String?, draft: Jou
         )
         if (savedLabel != null) {
             Spacer(Modifier.height(EgSpace.xs))
-            Text(savedLabel, style = EgType.label, color = c.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            Text(savedLabel, style = EgType.small, color = c.label, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -149,7 +149,7 @@ private fun Question(title: String, chosen: String?) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = EgType.bodyStrong, color = c.text)
         Spacer(Modifier.weight(1f))
-        if (chosen != null) Text(chosen, style = EgType.body, color = c.accent)
+        if (chosen != null) Text(chosen, style = EgType.bodyStrong, color = c.text)
     }
     Spacer(Modifier.height(EgSpace.xs))
 }
@@ -179,9 +179,9 @@ private fun ComparisonCard(entries: List<JournalEntry>) {
     EgCard(Modifier.fillMaxWidth()) {
         CardTitle("You vs our measure")
         Spacer(Modifier.height(EgSpace.xs))
-        Text(comparisonText(entries), style = EgType.lead, color = c.text)
+        Text(comparisonText(entries), style = EgType.coach, color = c.text)
         Spacer(Modifier.height(EgSpace.xs))
-        Text("Your sleepiness (1-9) against our fatigue score at the same moment.", style = EgType.label, color = c.muted)
+        Text("Your sleepiness (1-9) against our fatigue score at the same moment.", style = EgType.small, color = c.label)
     }
 }
 
@@ -199,7 +199,7 @@ private fun EntryCard(e: JournalEntry, today: String, actions: JournalActions, w
             if (wide) {
                 Spacer(Modifier.width(EgSpace.s))
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(EgSpace.xs)) {
-                    chips.forEach { Pill(it, c.accent) }
+                    chips.forEach { Pill(it) }
                 }
             } else {
                 Spacer(Modifier.weight(1f))
@@ -209,7 +209,7 @@ private fun EntryCard(e: JournalEntry, today: String, actions: JournalActions, w
         if (!wide && chips.isNotEmpty()) {
             Spacer(Modifier.height(EgSpace.xs))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(EgSpace.xs), verticalArrangement = Arrangement.spacedBy(EgSpace.xs)) {
-                chips.forEach { Pill(it, c.accent) }
+                chips.forEach { Pill(it) }
             }
         }
         Spacer(Modifier.height(EgSpace.xs))

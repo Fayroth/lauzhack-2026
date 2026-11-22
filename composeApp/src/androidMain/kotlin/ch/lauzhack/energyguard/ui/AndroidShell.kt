@@ -114,6 +114,8 @@ fun AndroidShell(haptics: HapticOutput, prefs: PairingPrefs, store: AppStore, on
                 store.updateSettings { s -> s.copy(theme = if (s.theme == ThemeMode.LIGHT) ThemeMode.DARK else ThemeMode.LIGHT) }
             },
             modifier = Modifier.imePadding(),
+            sleepHours = shown.settings.sleepHours,
+            onSleepHours = if (live == null) store::setSleepHours else null, // live: the PC's value, read-only
         )
     }
 }

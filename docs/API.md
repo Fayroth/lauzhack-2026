@@ -312,7 +312,10 @@ guard server (which stays 127.0.0.1-only, unchanged). Server: Ktor CIO in `deskt
   `jitterPerS` raw; `precisionPct` = 100 / overshoot. `source` = display label (`sensingSource`), ≤ 40 chars.
   Phone drops out-of-range values (`SignalsSnapshot.clamped()`). No `signals` (older PC) → phone formats raw `vision` / `input`.
 - `energy.startFromSleep` (0..100) and `energy.sleepHours` (3..9, clamped) let the phone draw the Energy / Recovery cards
-  read-only ("Change on your PC"). Still **no new endpoint**: the companion stays one read-only `GET /state`.
+  read-only ("Change on your PC").
+- `energyHistory` (M4.5, optional): today's battery curve for the "Energy through the day" chart, `[90, 89, …, 74]`, one
+  value per 5 min of app time, oldest first, max 288. Phone clamps each to 0..100 and keeps the last 288; absent (older PC)
+  → the chart shows the current battery only. Numbers only. Still **no new endpoint**: the companion stays one read-only `GET /state`.
 
 - `energy.battery` = `EnergyBattery` 0..100, `breakSource` = `"USER" | "AUTO" | null`; `recovery` = `RecoveryScore` 0..100;
   `stats` = `DayStats` (see "App model"). Phone clamps them (0..100, counters ≥ 0). **Never** journal entries or notes.
@@ -357,7 +360,10 @@ data class AppState(
     val settings: Settings,
     val history: List<DaySummary>,     // past days, newest first, max 7 (today = stats)
     val demo: Boolean,
+    val energyHistory: EnergyHistory,  // M4.5: today's battery curve (Today chart), in memory only
 )
+/** One sample per STEP_MIN (5) min of app time (×120 in demo), oldest first, max 288; reset at start, day change, F5. */
+data class EnergyHistory(val startMs: Long = 0, val values: List<Int> = emptyList())
 class AppStore(clock: () -> Long, dayKey: (Long) -> String, persistence: AppPersistence, demo: Boolean = false, ...) {
     val state: StateFlow<AppState>
     // feeds (shell → store)
@@ -432,7 +438,8 @@ data class DaySummary(val day: String, val focusedMs: Long, val breaksTaken: Int
                       val phishingBlocked: Int, val llmCalls: Int, val framesProcessed: Long, val battery: Int,
                       val minBattery: Int, val recovery: Int, val sleepHours: Double, val avgConcentration: Int?, val checkIns: Int)
 data class Profile(val baseline: BaselineSummary)
-data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Boolean) { val tag: String /* "AI" | "offline" */ }
+data class CoachNote(val text: String, val kind: Intervention, val fromLlm: Boolean, val ts: Long? = null) { val tag: String /* "AI" | "offline" */ }
+// ts (M4.5) = store clock when a new note arrived ("AI · 23:38" on the coach card); null on the phone (not on the wire).
 ```
 - Invalid journal values (KSS outside 1..9, stress outside 1..5, caffeine outside 0..20) are dropped (`null`); an entry
   with nothing in it is rejected (`addJournalEntry` returns `null`).

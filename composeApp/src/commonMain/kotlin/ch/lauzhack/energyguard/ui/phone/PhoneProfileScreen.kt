@@ -5,6 +5,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import ch.lauzhack.energyguard.ui.components.GlowDot
+import ch.lauzhack.energyguard.ui.components.hoursText
+import ch.lauzhack.energyguard.ui.today.SleepHoursSlider
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -53,6 +57,8 @@ fun PhoneProfileScreen(
     onConnect: (PairingTarget) -> Unit,
     onToggleTheme: () -> Unit,
     modifier: Modifier = Modifier,
+    sleepHours: Double? = null,
+    onSleepHours: ((Double) -> Unit)? = null,
 ) {
     val c = Eg.colors
     var editing by remember { mutableStateOf(false) }
@@ -62,11 +68,11 @@ fun PhoneProfileScreen(
         verticalArrangement = Arrangement.spacedBy(EgSpace.s),
     ) {
         EgCard(Modifier.fillMaxWidth()) {
-            Text("Your PC", style = EgType.title, color = c.muted)
+            Text("Your PC", style = EgType.title, color = c.text)
             Spacer(Modifier.height(EgSpace.xs))
             val (status, color) = linkStatus(link, error)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(10.dp).background(color, CircleShape))
+                GlowDot(color, 8.dp)
                 Spacer(Modifier.width(12.dp))
                 Text(status, style = EgType.bodyStrong, color = c.text)
             }
@@ -81,8 +87,24 @@ fun PhoneProfileScreen(
                 onConnect(it)
             }
         }
+        if (sleepHours != null) {
+            // Moved here from Today (C2). Live from the PC it is the PC's value, read-only.
+            EgCard(Modifier.fillMaxWidth()) {
+                Text("Sleep last night", style = EgType.title, color = c.text)
+                Spacer(Modifier.height(EgSpace.xs))
+                if (onSleepHours != null) {
+                    SleepHoursSlider(sleepHours, onSleepHours, height = 48.dp)
+                } else {
+                    Row(Modifier.heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(hoursText(sleepHours), style = EgType.bodyStrong, color = c.text)
+                        Spacer(Modifier.weight(1f))
+                        Text("Change on your PC", style = EgType.label, color = c.label)
+                    }
+                }
+            }
+        }
         EgCard(Modifier.fillMaxWidth()) {
-            Text("Privacy", style = EgType.title, color = c.muted)
+            Text("Privacy", style = EgType.title, color = c.text)
             Spacer(Modifier.height(EgSpace.xs))
             Text(
                 "The phone only reads numbers from your PC (score, battery, blink rate…). It never receives images, audio or keystrokes, and it can't change anything on the PC.",
@@ -90,7 +112,7 @@ fun PhoneProfileScreen(
             )
         }
         EgCard(Modifier.fillMaxWidth()) {
-            Text("Appearance", style = EgType.title, color = c.muted)
+            Text("Appearance", style = EgType.title, color = c.text)
             Spacer(Modifier.height(EgSpace.xs))
             EgButton(if (theme == ThemeMode.LIGHT) "Switch to dark mode" else "Switch to light mode", onToggleTheme, Modifier.fillMaxWidth(), primary = false)
         }
@@ -102,9 +124,9 @@ private fun linkStatus(link: PhoneLink, error: String?): Pair<String, Color> {
     val c = Eg.colors
     return when {
         error != null -> error to c.exhausted
-        link is PhoneLink.Live -> "Live from ${link.pc}" to c.fresh
-        link is PhoneLink.Connecting -> "Connecting to ${link.pc}…" to c.accent
-        link is PhoneLink.Offline -> "Can't reach ${link.pc} · retrying" to c.tired
+        link is PhoneLink.Live -> "Live from ${link.pc}" to c.accent
+        link is PhoneLink.Connecting -> "Connecting to ${link.pc}…" to c.ice
+        link is PhoneLink.Offline -> "Can't reach ${link.pc} · retrying" to c.tiredFill
         else -> "Not connected · showing demo data" to c.muted
     }
 }
@@ -124,10 +146,10 @@ private fun PairingForm(
     var code by remember { mutableStateOf("") }
     var invalid by remember { mutableStateOf(false) }
     EgCard(Modifier.fillMaxWidth()) {
-        Text("Connect to my PC", style = EgType.title, color = c.text)
+        Text("Connect to my PC", style = EgType.heading, color = c.text)
         Spacer(Modifier.height(EgSpace.xs))
         Text(
-            "Same Wi-Fi as the PC (e.g. this phone's hotspot). On your PC, turn on phone sharing and type the address and code shown at the bottom.",
+            "Same Wi-Fi as the PC (e.g. this phone's hotspot). On your PC, turn on phone sharing, then type the address and code from its Profile tab.",
             style = EgType.body, color = c.muted,
         )
         if (invalid) {

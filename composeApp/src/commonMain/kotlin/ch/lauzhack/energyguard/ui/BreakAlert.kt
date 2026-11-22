@@ -1,5 +1,14 @@
 package ch.lauzhack.energyguard.ui
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import ch.lauzhack.energyguard.ui.components.Eg
+import ch.lauzhack.energyguard.ui.components.EgButton
+import ch.lauzhack.energyguard.ui.components.EgSpace
+import ch.lauzhack.energyguard.ui.components.EgType
+import ch.lauzhack.energyguard.ui.components.Pill
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -156,16 +165,16 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
     ) {
         Row(
             Modifier
-                .clip(RoundedCornerShape(50)) // pill-shaped click ripple
-                .background(Warm.Surface)
-                .background(accent.copy(alpha = 0.16f))
+                .clip(CircleShape) // pill-shaped click ripple
+                .background(Eg.colors.raised)
+                .border(1.dp, Eg.colors.border, CircleShape)
                 .clickable { logic.openCard(nowMs()); clicks++ }
                 .padding(horizontal = 24.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CoffeeCup(accent, 28.dp)
             Spacer(Modifier.width(12.dp))
-            Text("Break soon?", fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+            Text("Break soon?", style = EgType.ringName, color = Warm.Text)
         }
     }
 
@@ -186,15 +195,15 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
         Row(
             Modifier
                 .widthIn(max = 900.dp)
-                .background(Warm.Surface, RoundedCornerShape(50))
-                .background(Warm.Honey.copy(alpha = 0.14f), RoundedCornerShape(50))
+                .background(Eg.colors.raised, CircleShape)
+                .border(1.dp, Eg.colors.border, CircleShape)
                 .padding(horizontal = 28.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Welcome back", fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = Warm.Honey)
+            Text("Welcome back", style = EgType.ringName, color = Warm.Honey)
             welcome?.let {
                 Spacer(Modifier.width(16.dp))
-                Text(factorize(it.text), fontSize = 20.sp, color = Warm.Muted, maxLines = 1)
+                Text(factorize(it.text), style = EgType.lead, color = Warm.Muted, maxLines = 1)
                 Spacer(Modifier.width(16.dp))
                 SourceTag(it.fromLlm)
             }
@@ -211,62 +220,56 @@ fun BoxScope.BreakAlertOverlay(f: FatigueState, coach: CoachMessage?, demo: Bool
             Modifier
                 .widthIn(max = 1000.dp)
                 .height(IntrinsicSize.Min) // lets the accent bar match the card's height
-                .background(Warm.Surface, RoundedCornerShape(24.dp))
-                .background(accent.copy(alpha = 0.12f), RoundedCornerShape(24.dp))
+                .shadow(24.dp, RoundedCornerShape(EgSpace.radius), clip = false)
+                .background(Brush.verticalGradient(listOf(Eg.colors.cardTop, Eg.colors.cardBottom)), RoundedCornerShape(EgSpace.radius))
+                .border(1.dp, Eg.colors.border, RoundedCornerShape(EgSpace.radius))
                 .padding(horizontal = 32.dp, vertical = 24.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.width(8.dp).fillMaxHeight().background(accent, RoundedCornerShape(4.dp)))
+            Box(Modifier.width(6.dp).fillMaxHeight().background(accent, CircleShape))
             Spacer(Modifier.width(24.dp))
             CoffeeCup(accent, 56.dp)
             Spacer(Modifier.width(24.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(breakTitle(coach), fontSize = 34.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text)
+                    Text(breakTitle(coach), style = EgType.screenTitle, color = Warm.Text)
                     usableCoach(coach)?.let {
                         Spacer(Modifier.width(16.dp))
                         SourceTag(it.fromLlm)
                     }
                 }
-                Text(breakDetail(f, coach), fontSize = 24.sp, color = Warm.Muted)
+                Text(breakDetail(f, coach), style = EgType.lead.copy(fontSize = 22.sp, lineHeight = 30.sp), color = Warm.Muted)
             }
             Spacer(Modifier.width(24.dp))
-            OutlinedButton(onClick = { logic.snooze(nowMs()); clicks++ }) {
-                Text("Snooze", fontSize = 20.sp, color = Warm.Text)
-            }
-            Spacer(Modifier.width(16.dp))
-            Button(
-                onClick = { logic.dismiss(); clicks++ },
-                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = Warm.Deep),
-            ) { Text("I'll take it", fontSize = 20.sp, fontWeight = FontWeight.SemiBold) }
+            EgButton("Snooze", { logic.snooze(nowMs()); clicks++ }, primary = false)
+            Spacer(Modifier.width(12.dp))
+            EgButton("I'll take it", { logic.dismiss(); clicks++ })
         }
     }
 
     // 3. FULL: dims the whole screen. Micro-sleep has its own wording and an "I'm awake" button.
     AnimatedVisibility(stage == AlertStage.FULL, Modifier.fillMaxSize(), enter = fadeIn(), exit = fadeOut()) {
         Box(
-            Modifier.fillMaxSize().background(Warm.Deep.copy(alpha = 0.92f)).clickable(enabled = false) {},
+            Modifier.fillMaxSize().background(Eg.colors.background.copy(alpha = 0.94f)).clickable(enabled = false) {},
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 CoffeeCup(Warm.Rose, 120.dp)
                 Text(
                     if (microSleep != null) "Your eyes just closed" else "Stop. Take a break.",
-                    fontSize = 64.sp, fontWeight = FontWeight.SemiBold, color = Warm.Text, textAlign = TextAlign.Center,
+                    style = EgType.screenTitle.copy(fontSize = 60.sp, lineHeight = 68.sp), color = Warm.Text, textAlign = TextAlign.Center,
                 )
                 Text(
                     if (microSleep != null) "${readableReason(microSleep).replaceFirstChar { it.uppercase() }}. That's a micro-sleep: don't push through it."
                     else "You've been exhausted for a while. Rest now, the work will still be there.",
-                    fontSize = 26.sp, color = Warm.Muted, textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 900.dp),
+                    style = EgType.lead.copy(fontSize = 24.sp, lineHeight = 34.sp), color = Warm.Muted, textAlign = TextAlign.Center,
+                    modifier = Modifier.widthIn(max = 900.dp),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     if (microSleep != null) {
-                        OutlinedButton(onClick = { logic.awake(nowMs()); clicks++ }) { Text("I'm awake", fontSize = 22.sp, color = Warm.Text) }
+                        EgButton("I'm awake", { logic.awake(nowMs()); clicks++ }, primary = false)
                     }
-                    Button(
-                        onClick = { logic.dismiss(); logic.awake(nowMs()); clicks++ },
-                        colors = ButtonDefaults.buttonColors(containerColor = Warm.Rose, contentColor = Warm.Deep),
-                    ) { Text("I'm taking a break", fontSize = 22.sp, fontWeight = FontWeight.SemiBold) }
+                    EgButton("I'm taking a break", { logic.dismiss(); logic.awake(nowMs()); clicks++ })
                 }
             }
         }
@@ -279,12 +282,7 @@ private const val WELCOME_TOAST_MS = 5_000L
 @Composable
 private fun SourceTag(fromLlm: Boolean) {
     if (!fromLlm) return
-    Text(
-        "AI",
-        fontSize = 15.sp,
-        color = Warm.Muted,
-        modifier = Modifier.background(Warm.Track, RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 2.dp),
-    )
+    Pill("AI")
 }
 
 /** Simple coffee-cup line icon (the universal "take a break" sign in cars). */
